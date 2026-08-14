@@ -26,16 +26,33 @@ export const config = {
   // --- Grid geometry (abstract game units) ---
   // The playfield is `columns` wide; `rowHeight` is the vertical size of a
   // single brick row. columnWidth = design.width / columns = 120 units.
+  // `initialRows`: how many brick rows are seeded (bottom-anchored) at the
+  // start of a session — the initial stack the player must survive (Phase 03
+  // GameModel). The topmost seeded row begins at y = design.height -
+  // rowHeight * initialRows and rises toward the top boundary.
   grid: {
     columns: 6,
     rowHeight: 120,
+    initialRows: 4,
   },
 
   // --- Rising motion ---
   // Upward pressure: how fast the stack of brick rows rises toward the top
-  // (game units per second). Increased by the difficulty curve over time.
+  // (game units per second). Increased by the difficulty curve over time
+  // (riseSpeed = rise.speed + difficultyLevel * difficulty.riseSpeedGrowthPerLevel).
+  // Tuned together with grid.initialRows and difficulty.riseSpeedGrowthPerLevel
+  // so a fixed-seed, no-input session reaches game-over within ~30-45 s of
+  // simulated time (R2) — see test/simulation.integration.test.js.
   rise: {
-    speed: 40,
+    speed: 16,
+  },
+
+  // --- Game-over boundary ---
+  // The stack loses when the topmost alive brick's top edge reaches this y
+  // (game units from the top). 0 = the very top of the playfield. Additive
+  // tunable consumed by the Phase 03 GameModel game-over check.
+  gameOver: {
+    topY: 0,
   },
 
   // --- Brick-row spawning ---
@@ -74,7 +91,7 @@ export const config = {
   difficulty: {
     levelInterval: 8,
     valueDriftPerLevel: 1.5,
-    riseSpeedGrowthPerLevel: 6,
+    riseSpeedGrowthPerLevel: 2,
     maxLevel: 12,
   },
 
