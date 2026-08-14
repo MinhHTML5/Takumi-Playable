@@ -4,7 +4,7 @@
 
 - Feature Slug: blockdrop-2
 - Related TDD: `./10-tdd.md`
-- Status: Active — reconciled after Phase 02
+- Status: Active — reconciled after Phase 03
 - Last Updated: 2026-08-14
 
 ---
@@ -32,7 +32,7 @@
   blocking acquisition risk.
 
 ### R2: Difficulty tuning misses the 30–45 s target
-- Status: Partially mitigated — value-curve shape accepted; session timing remains for Phase 03
+- Status: Mitigated for the headless model; browser play feel remains to be confirmed
 - Category: Correctness
 - Description: Rise speed, spawn interval, and the value-scaling curve must combine so a typical
   first-time player loses in ~30–45 s. Mis-tuned constants make sessions too short or too long.
@@ -47,6 +47,10 @@
   level, and show upward mean drift under fixed seeds. Review node
   `d77b016e-5282-449c-a35c-51e6deb4cb95` accepted these properties with 49/49 tests passing. The
   30–45 s game-over target cannot be exercised until the Phase 03 simulation loop exists.
+- Phase 03 Outcome: Review node `e75fa37f-ff0f-4965-b4cd-1d9e683e0f40` accepted integration
+  evidence that no-input sessions under seeds `1`, `20260814`, and `777`, stepped at 60 Hz, reach
+  game-over within `[30,45]` seconds. Residual risk is subjective player feel, to be checked once
+  browser play is available.
 
 ### R3: Phaser scenes are hard to unit-test
 - Status: Open — mitigation established, residual manual validation remains
@@ -65,7 +69,7 @@
   test passed. Browser rendering remains a manual validation boundary (CF-01).
 
 ### R4: Non-deterministic core breaks reproducibility and tests
-- Status: Mitigated for delivered primitives — Phase 03 must preserve the established guard
+- Status: Mitigated through the complete Phase 03 simulation core
 - Category: Correctness
 - Description: Direct `Math.random()` or wall-clock reads in the core would make sessions
   irreproducible and tests flaky.
@@ -81,6 +85,9 @@
   or wall-clock reads, and seeded replay assertions pass. Review node
   `d77b016e-5282-449c-a35c-51e6deb4cb95` accepted the implementation without findings. The same
   invariant remains binding as Phase 03 adds `tick(dt)` and simulation orchestration.
+- Phase 03 Outcome: `GameModel` uses injected RNG and explicit `dt` only; the recursive purity
+  guard and seeded integration scenarios passed in the accepted 85/85 suite. Phase 03 review found
+  no wall-clock or direct-randomness path.
 
 ### R5: Mobile performance under particle/glow load
 - Status: Open — not exercised in Phase 01
@@ -95,7 +102,7 @@
 - Phase Most Affected: Phase 05
 
 ### R6: Collision cascade / row-clear edge cases
-- Status: Open — implementation begins in Phase 03
+- Status: Mitigated for the accepted Phase 03 configuration and contracts
 - Category: Correctness
 - Description: The bomb chewing through multiple bricks in one fall, exact-match full-row clears,
   and simultaneous events create ordering/edge-case bugs (e.g. bomb reduced to 0, empty rows,
@@ -108,6 +115,11 @@
   tests; test the cascade and row-clear in `simulation.js` with scripted scenarios; assert INV-4
   and INV-8 hold.
 - Phase Most Affected: Phase 03
+- Phase 03 Outcome: Exhaustive resolver tests and model integration scenarios cover greater,
+  lesser, exact, multi-brick cascades, partially cleared rows, aggregate row scoring, and misses.
+  Review node `e75fa37f-ff0f-4965-b4cd-1d9e683e0f40` accepted all evidence. Residual constraint:
+  collision overlap is point-based and assumes bomb travel per tick does not exceed row height;
+  this is tracked as Phase 03 CF-04 for any future tuning that changes that relationship.
 
 ### R7: Mobile-portrait scaling / input across viewports
 - Status: Partially mitigated — shell configuration delivered; browser confirmation pending
@@ -155,8 +167,8 @@
 
 ## 3. Open Risk Questions
 
-- Q1: Will the empirically-tuned difficulty constants hold the 30–45 s window across the range of
-  real first-time players, or only under the test seed? Resolved by playtest feedback during
-  Phases 03–06.
+- Q1: The headless no-input window holds for three accepted fixed seeds. Will the same constants
+  produce the intended duration and feel for real first-time players? Resolve through browser
+  playtest feedback during Phases 04–06.
 - Q2: Resolved for the current scope. Phaser 3.80.0 is vendored for self-containment, consistent
   with the absence of a file-size constraint. Reopen only if product scope introduces one.

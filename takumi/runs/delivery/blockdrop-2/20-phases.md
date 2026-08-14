@@ -4,7 +4,7 @@
 
 - Feature Slug: blockdrop-2
 - Related TDD: `./10-tdd.md`
-- Status: In Delivery — Phases 01–02 accepted; Phase 03 next
+- Status: In Delivery — Phases 01–03 accepted; Phase 04 next
 - Last Updated: 2026-08-14
 
 ---
@@ -56,6 +56,9 @@ Single repo throughout: **Takumi-Playable**.
 - Key Risks / Notes: Difficulty tuning risk (R2) begins here; determinism (R4).
 
 ### Phase 03: Simulation Loop — Collision, Rising & Game Over
+- Outcome: Accepted on 2026-08-14 by review node
+  `e75fa37f-ff0f-4965-b4cd-1d9e683e0f40`. The pure collision resolver and complete deterministic
+  `GameModel` were delivered with 85/85 automated tests passing and no blocking findings.
 - Goal: The full headless game model: tick loop, collision cascade, rising bricks + spawn,
   cooldown gate, and game-over detection.
 - Scope: `src/core/collision.js` (single bomb↔brick resolution: greater/lesser/exact) and
@@ -64,12 +67,12 @@ Single repo throughout: **Takumi-Playable**.
   clear, scoring integration, one-bomb cooldown, and game-over when bricks reach the top.
 - Repos touched: Takumi-Playable.
 - Exit Criteria:
-  - [ ] All three collision rules behave exactly as specified, including multi-brick cascade and
+  - [x] All three collision rules behave exactly as specified, including multi-brick cascade and
         exact-match full-row clear (unit + integration). (INV-8)
-  - [ ] `dropBomb` respects cooldown and single-active-bomb rule (unit). (INV-5)
-  - [ ] A headless session (spawn → rise → no input) reaches game-over, and under the tuned seed
+  - [x] `dropBomb` respects cooldown and single-active-bomb rule (unit). (INV-5)
+  - [x] A headless session (spawn → rise → no input) reaches game-over, and under the tuned seed
         lands within ~30–45 s of simulated time (integration). (R2)
-  - [ ] `GameModel` public API returns the state/event shape defined in the TDD (contract).
+  - [x] `GameModel` public API returns the state/event shape defined in the TDD (contract).
 - Key Risks / Notes: Depends on Phase 02. Highest logic-complexity phase; heaviest test coverage.
 
 ### Phase 04: Rendering & Input Binding
@@ -138,12 +141,14 @@ the shell (01) exists, but rendering (04) cannot start until the model (03) is r
 
 ## 3. Deferred Work Registry
 
-Phases 01–02 leave three non-blocking, review-traceable items. Phase 02 deliberately re-deferred
-all three because it changed only the Phaser-free core. Current fields and rationale are in
-`phase-02/32-carry-forward.md`.
+Phase 03 leaves four non-blocking, review-traceable items. It re-deferred the three inherited
+items because it changed only the Phaser-free core and recorded one accepted collision-overlap
+constraint. Current fields and rationale are in `phase-03/32-carry-forward.md`.
 
 - CF-01 — execute the manual mobile-portrait browser boot check before relying on the shell for
   Phase 04 rendering integration.
 - CF-02 — remove the pre-existing empty `Test.txt` during an explicitly scoped cleanup task.
 - CF-03 — consider a debug-only warning for unknown scale configuration tokens when shell
   observability is next touched.
+- CF-04 — preserve the accepted bomb-travel/row-height constraint or adopt swept collision if
+  future tuning can move a bomb across more than one row height per tick.

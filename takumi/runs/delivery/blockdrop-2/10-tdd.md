@@ -8,7 +8,7 @@
   - Product: Operator (via intake)
   - Architecture: lane:arch / stage:baseline
   - Build: lane:build (per-phase)
-- Status: In Delivery — Phases 01–02 accepted
+- Status: In Delivery — Phases 01–03 accepted
 - Last Updated: 2026-08-14
 
 ---
@@ -36,14 +36,16 @@ survival loop with neon art, juice effects, value-based scoring, and a game-over
   score reflects value removed/cleared, the neon visuals + juice are present, and the game-over
   CTA restarts a fresh session. All core rules are covered by passing unit/integration tests.
 
-**Implemented state after Phase 02:** The repository contains the accepted 720×1280 Phaser shell,
+**Implemented state after Phase 03:** The repository contains the accepted 720×1280 Phaser shell,
 vendored Phaser 3.80.0 runtime, central Phaser-free tunables, and a `node:test` harness. Phase 02
 added the deterministic RNG, elapsed-time difficulty/value functions, immutable grid/row helpers,
-and monotonic score accumulator under `src/core/`. These primitives are Phaser/DOM-free, draw
-randomness only through an injected seeded RNG, and are covered by the 49/49-test accepted suite.
-The simulation tick/collision loop, gameplay input, procedural game art, effects, and game-over
-flow remain planned for Phases 03–06. This state is grounded in Phase 02 review node
-`d77b016e-5282-449c-a35c-51e6deb4cb95`, which recorded `accept` with no findings.
+and monotonic score accumulator under `src/core/`. Phase 03 added the pure collision resolver and
+the deterministic `GameModel`, including rising/spawn timing, bomb cooldown and cascade, exact-row
+clears, scoring, reset, events, and game-over detection. The complete core is Phaser/DOM-free,
+draws randomness only through an injected seeded RNG, and is covered by the 85/85-test accepted
+suite. Gameplay input, procedural game art, effects, and the game-over presentation remain planned
+for Phases 04–06. This state is grounded in Phase 03 review node
+`e75fa37f-ff0f-4965-b4cd-1d9e683e0f40`, which recorded `accept` with no blocking findings.
 
 ---
 
@@ -78,21 +80,23 @@ flow remain planned for Phases 03–06. This state is grounded in Phase 02 revie
 - **Current architecture summary:** Phase 01 established a standalone Phaser browser shell and
   an offline headless test harness. `index.html` loads the vendored Phaser 3.80.0 runtime before
   the ES-module entry; `src/main.js` maps engine-agnostic scale tokens onto Phaser enums and starts
-  `BootScene` → `GameScene`. Phase 02 established the pure simulation primitives in
+  `BootScene` → `GameScene`. Phases 02–03 established the complete pure simulation core in
   `src/core/rng.js`, `difficulty.js`, `grid.js`, and `scoring.js`; dynamic purity guards cover the
-  full core tree. The orchestrating simulation model and collision resolver are not implemented.
+  full core tree. `collision.js` resolves individual interactions and `simulation.js` owns the
+  deterministic `GameModel` and its tick pipeline.
 - **Relevant modules/services:** `index.html`, `src/main.js`, `src/scenes/BootScene.js`,
   `src/scenes/GameScene.js`, `src/core/config.js`, `rng.js`, `difficulty.js`, `grid.js`,
-  `scoring.js`, their five `node:test` suites, and `vendor/phaser.min.js`. Collision, simulation,
-  and rendering modules described in §4 remain planned.
+  `scoring.js`, `collision.js`, `simulation.js`, their eight `node:test` suites, and
+  `vendor/phaser.min.js`. Rendering modules described in §4 remain planned.
 - **Relevant data flows:** The implemented flow is browser host → Phaser boot → scene transition
-  → static neon-gradient render. The planned input → simulation → state → render flow begins in
-  later phases. Nothing is persisted and nothing leaves the browser tab.
+  → static neon-gradient render. The model-side simulation → state/event flow is implemented;
+  input and rendering bind to it in Phase 04. Nothing is persisted and nothing leaves the browser
+  tab.
 - **Current constraints:** Must use Phaser (PRD §5). Must run standalone in a browser, mobile
   portrait first. No network/backend. No ad-network packaging required this version.
 
 > There is no generated `REPO_MAP.md` to reference. Current implementation state is recorded by
-> Phase 02 review node `d77b016e-5282-449c-a35c-51e6deb4cb95` and its accepted review artifact.
+> Phase 03 review node `e75fa37f-ff0f-4965-b4cd-1d9e683e0f40` and its accepted review artifact.
 
 ---
 
@@ -116,8 +120,9 @@ flow remain planned for Phases 03–06. This state is grounded in Phase 02 revie
   - Integration points: Imported by both the simulation core and the render layer.
 
 - **Simulation Core (`src/core/*.js`) — the heart, Phaser-free**
-  - Delivery status: RNG, difficulty/value scaling, grid/row helpers, and scoring implemented and
-    accepted in Phase 02; collision resolution and the orchestrating `GameModel` remain Phase 03.
+  - Delivery status: Implemented and accepted through Phase 03. Phase 02 delivered RNG,
+    difficulty/value scaling, grid/row helpers, and scoring; Phase 03 delivered collision
+    resolution and the orchestrating `GameModel`.
   - `rng.js`: seedable deterministic RNG (injectable); the only randomness source in the core.
   - `difficulty.js`: pure functions mapping elapsed time → brick value and → bomb value ranges
     (distribution drifts upward over time; brick values clamped to [1,30]).
@@ -181,6 +186,10 @@ render layer and tests depend on a fixed shape.
 - `model.getState() -> readonly snapshot` — bricks, bomb, score, status, danger metrics.
 - `model.consumeEvents() -> Event[]` — drain and return juice events since last call.
 - `model.reset()` / construct anew — return to the initial state for restart.
+- Collision overlap currently uses the bomb's point position. With accepted configuration,
+  per-tick travel (15 game units at 60 Hz) is below the 120-unit row height, so a brick cannot be
+  skipped; changing that relationship requires preserving the constraint or adopting swept
+  overlap. This accepted limitation is traced to Phase 03 review advisory A-1.
 - No HTTP endpoints, routes, hubs, DTOs, or schemas exist (standalone browser app).
 
 ### 4.4 Invariants (Non-Negotiables)
@@ -277,8 +286,9 @@ an operator round-trip in a headless run. All are centralized in `config.js` for
 
 ## 9. Open Questions
 
-- Q1: Final difficulty-curve constants to reliably land sessions in the 30–45 s window will be
-  tuned empirically during the simulation phases; the integration test asserts the window under a
-  fixed seed with no player input (worst case) and the tunables live in `config.js`.
+- Q1: The accepted Phase 03 constants land no-input sessions in the 30–45 s window across the
+  three fixed seeds exercised by integration tests. Whether that tuning produces the intended
+  duration and feel for real first-time players remains a manual playtest question for the
+  browser phases; the tunables remain centralized in `config.js`.
 - Q2: Exact neon palette values and glow intensities are an art decision finalized during the
   render/feel phases; they do not affect architecture.
