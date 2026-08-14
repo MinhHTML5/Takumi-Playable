@@ -4,7 +4,7 @@
 
 - Feature Slug: blockdrop-2
 - Related TDD: `./10-tdd.md`
-- Status: Active — reconciled after Phase 01
+- Status: Active — reconciled after Phase 02
 - Last Updated: 2026-08-14
 
 ---
@@ -32,7 +32,7 @@
   blocking acquisition risk.
 
 ### R2: Difficulty tuning misses the 30–45 s target
-- Status: Open — not exercised in Phase 01
+- Status: Partially mitigated — value-curve shape accepted; session timing remains for Phase 03
 - Category: Correctness
 - Description: Rise speed, spawn interval, and the value-scaling curve must combine so a typical
   first-time player loses in ~30–45 s. Mis-tuned constants make sessions too short or too long.
@@ -43,6 +43,10 @@
 - Mitigation: Centralize every tunable in `config.js`; add an integration test asserting the
   simulated game-over time falls within a target band; iterate constants without touching logic.
 - Phase Most Affected: Phase 03 (introduced in Phase 02)
+- Phase 02 Outcome: Brick and bomb ranges remain within `[1,30]`, rise monotonically by difficulty
+  level, and show upward mean drift under fixed seeds. Review node
+  `d77b016e-5282-449c-a35c-51e6deb4cb95` accepted these properties with 49/49 tests passing. The
+  30–45 s game-over target cannot be exercised until the Phase 03 simulation loop exists.
 
 ### R3: Phaser scenes are hard to unit-test
 - Status: Open — mitigation established, residual manual validation remains
@@ -61,7 +65,7 @@
   test passed. Browser rendering remains a manual validation boundary (CF-01).
 
 ### R4: Non-deterministic core breaks reproducibility and tests
-- Status: Open — implementation begins in Phase 02
+- Status: Mitigated for delivered primitives — Phase 03 must preserve the established guard
 - Category: Correctness
 - Description: Direct `Math.random()` or wall-clock reads in the core would make sessions
   irreproducible and tests flaky.
@@ -72,6 +76,11 @@
 - Mitigation: All randomness flows through an injected seedable RNG (INV-2); `tick(dt)` takes an
   explicit delta rather than reading time. Enforce with a grep-based purity test.
 - Phase Most Affected: Phase 02
+- Phase 02 Outcome: `rng.js` provides deterministic per-seed streams; difficulty functions use an
+  injected RNG and explicit elapsed time. Dynamic tests scan every core module for direct random
+  or wall-clock reads, and seeded replay assertions pass. Review node
+  `d77b016e-5282-449c-a35c-51e6deb4cb95` accepted the implementation without findings. The same
+  invariant remains binding as Phase 03 adds `tick(dt)` and simulation orchestration.
 
 ### R5: Mobile performance under particle/glow load
 - Status: Open — not exercised in Phase 01
