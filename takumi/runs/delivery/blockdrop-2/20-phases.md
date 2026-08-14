@@ -1,0 +1,134 @@
+# Phases: Neon Bomb Brick Playable (blockdrop-2)
+
+## 0. Metadata
+
+- Feature Slug: blockdrop-2
+- Related TDD: `./10-tdd.md`
+- Status: Draft
+- Last Updated: 2026-08-14
+
+---
+
+## 1. Phase Roadmap (High Level)
+
+This document defines *how we sequence delivery*. It does NOT include file-level implementation
+details. Decomposition follows the smallest-safe-slice rule: each phase is an independently
+validatable unit that leaves the system coherent. The heavy, subtle logic (collision cascade,
+difficulty, scoring) is isolated in the Phaser-free simulation core so it can be validated
+headlessly before any rendering exists.
+
+Single repo throughout: **Takumi-Playable**.
+
+### Phase 01: Playable Shell & Test Harness
+- Goal: Establish a bootable mobile-portrait Phaser runtime and the headless test harness.
+- Scope: `index.html` loading a pinned/vendored Phaser 3; `src/main.js` game config (720×1280
+  design resolution, `Scale.FIT` + `CENTER_BOTH`, scene list); a minimal `BootScene`/`GameScene`
+  rendering a plain neon background; `src/core/config.js` tunables module; `node:test` harness
+  wired via a `package.json` `test` script (`node --test`) with a smoke test importing `config.js`.
+- Repos touched: Takumi-Playable.
+- Exit Criteria:
+  - [ ] Page boots in a browser in portrait and renders a background (manual DoD check).
+  - [ ] `node --test` runs and the config smoke test passes (unit).
+  - [ ] `config.js` exposes the tunable set defined in the TDD and imports no Phaser.
+- Key Risks / Notes: Vendoring/pinning Phaser (R1). Foundation for all later phases.
+
+### Phase 02: Simulation Core — Values, Grid & Scoring
+- Goal: Deterministic, Phaser-free primitives for value generation, the grid/brick/bomb data
+  model, and scoring.
+- Scope: `src/core/rng.js` (seedable RNG), `src/core/difficulty.js` (elapsed→brick value in [1,30]
+  with upward drift; elapsed→bomb value scaling), `src/core/grid.js` (brick/row/bomb model +
+  row-clear helper), `src/core/scoring.js`. No simulation loop yet; no rendering.
+- Repos touched: Takumi-Playable.
+- Exit Criteria:
+  - [ ] Brick values always ∈ [1,30]; mean value increases with elapsed time under a fixed seed
+        (unit). (INV-7)
+  - [ ] Bomb value range scales upward with elapsed time (unit).
+  - [ ] Seeded RNG is deterministic — same seed reproduces the same sequence (unit). (INV-2)
+  - [ ] Scoring accumulates value monotonically and correctly (unit). (INV-4)
+- Key Risks / Notes: Difficulty tuning risk (R2) begins here; determinism (R4).
+
+### Phase 03: Simulation Loop — Collision, Rising & Game Over
+- Goal: The full headless game model: tick loop, collision cascade, rising bricks + spawn,
+  cooldown gate, and game-over detection.
+- Scope: `src/core/collision.js` (single bomb↔brick resolution: greater/lesser/exact) and
+  `src/core/simulation.js` (`GameModel` with `dropBomb`, `tick`, `getState`, `consumeEvents`,
+  `reset`). Implements the collision cascade (bomb chewing through a column), exact-match row
+  clear, scoring integration, one-bomb cooldown, and game-over when bricks reach the top.
+- Repos touched: Takumi-Playable.
+- Exit Criteria:
+  - [ ] All three collision rules behave exactly as specified, including multi-brick cascade and
+        exact-match full-row clear (unit + integration). (INV-8)
+  - [ ] `dropBomb` respects cooldown and single-active-bomb rule (unit). (INV-5)
+  - [ ] A headless session (spawn → rise → no input) reaches game-over, and under the tuned seed
+        lands within ~30–45 s of simulated time (integration). (R2)
+  - [ ] `GameModel` public API returns the state/event shape defined in the TDD (contract).
+- Key Risks / Notes: Depends on Phase 02. Highest logic-complexity phase; heaviest test coverage.
+
+### Phase 04: Rendering & Input Binding
+- Goal: Make the simulation visible and playable in Phaser.
+- Scope: `src/render/neon.js` (procedural neon textures for background, bricks, bomb, danger line;
+  green→red tint mapping helper) and `GameScene` wiring — instantiate `GameModel`, drive it with
+  Phaser delta time, render bricks/bomb/danger line from `getState`, and map taps (snapped to
+  column) → `model.dropBomb`. No juice yet beyond static rendering.
+- Repos touched: Takumi-Playable.
+- Exit Criteria:
+  - [ ] Bricks, bomb, and danger line render at model positions; the loop is playable end-to-end
+        in a browser (manual DoD check).
+  - [ ] Tint mapping is monotonic green→red across [1,30] and updates on partial damage (unit for
+        the mapping fn; manual for visuals). (INV-7)
+  - [ ] Tap position maps to the correct brick column and triggers a drop only when allowed (unit
+        for the mapping/gate; manual for feel).
+- Key Risks / Notes: Depends on Phases 01 + 03. Scene stays thin; no state mutation outside the
+  model (INV-3). Testability-of-Phaser risk (R3).
+
+### Phase 05: Game Feel Effects
+- Goal: Add the required juice.
+- Scope: Explosion particles on bomb detonation, brick spawn fade-in, screen shake on exact-match
+  row clears, pulsing top danger line, and immediate partial-damage tint refresh — all driven by
+  the model's drained events (`consumeEvents`).
+- Repos touched: Takumi-Playable.
+- Exit Criteria:
+  - [ ] Each required effect is present and visibly triggered by the correct game event (manual
+        DoD check).
+  - [ ] Effects are event-driven from the model and do not alter simulation outcomes — core tests
+        from Phases 02–03 still pass unchanged (regression).
+  - [ ] Particle counts are capped per the performance budget (review). (R5)
+- Key Risks / Notes: Depends on Phase 04. Performance-on-mobile risk (R5).
+
+### Phase 06: Game-Over Screen & Restart CTA
+- Goal: Close the session loop.
+- Scope: `GameOverScene` — game-over fade-in, final score display, and the fake `Play` CTA that
+  restarts a fresh session; wire `GameScene`'s game-over transition; ensure a clean state reset on
+  restart.
+- Repos touched: Takumi-Playable.
+- Exit Criteria:
+  - [ ] Game-over screen fades in with the final score and a fake `Play` CTA (manual DoD check).
+  - [ ] Activating the CTA restarts a fresh session equal to the initial state — score 0, no bomb,
+        fresh bricks (integration on `reset`/re-construction). (INV-6)
+  - [ ] Full DoD walkthrough passes: portrait boot, collision rules, rise→game-over, cooldown,
+        upward scaling, value-based score, game-over CTA restart, neon effects visible.
+- Key Risks / Notes: Depends on Phase 04 (and visually on Phase 05's fade-in). Final integration
+  phase.
+
+---
+
+## 2. Phase Dependencies
+
+- Phase 02 depends on Phase 01 because it needs the source layout, `config.js` tunables, and the
+  `node:test` harness in place.
+- Phase 03 depends on Phase 02 because the loop composes the value/grid/scoring primitives.
+- Phase 04 depends on Phases 01 and 03 because rendering binds the Phaser runtime (01) to a
+  functioning simulation model (03).
+- Phase 05 depends on Phase 04 because juice attaches to rendered objects and model events.
+- Phase 06 depends on Phase 04 (playable loop + game-over signal) and visually leans on Phase 05's
+  fade-in; it closes the session lifecycle.
+
+Phases 02 and 03 are pure-logic and can proceed independently of the render track's art work once
+the shell (01) exists, but rendering (04) cannot start until the model (03) is real.
+
+---
+
+## 3. Deferred Work Registry
+
+No deferrals yet. Review-driven deferrals and any tuning follow-ups will be recorded here as
+phases execute.
