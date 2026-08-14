@@ -1,0 +1,11 @@
+{
+  "name": "blockdrop-2",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BlockDrop 2 — neon bomb-vs-brick playable. Phaser-free deterministic core + headless test harness.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "license": "UNLICENSED"
+}
