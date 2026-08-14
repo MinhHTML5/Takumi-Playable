@@ -4,7 +4,7 @@
 
 - Feature Slug: blockdrop-2
 - Related TDD: `./10-tdd.md`
-- Status: Draft
+- Status: Active — reconciled after Phase 01
 - Last Updated: 2026-08-14
 
 ---
@@ -12,6 +12,7 @@
 ## 1. Risks
 
 ### R1: Phaser runtime acquisition / version drift
+- Status: Resolved for the current scope in Phase 01
 - Category: Operational
 - Description: The playable depends on the Phaser 3 runtime. Loading it from a CDN introduces a
   runtime network dependency and version drift; the sandbox may also lack network access to fetch
@@ -25,8 +26,13 @@
   automated tests import **no** Phaser (INV-1), so validation never depends on runtime acquisition
   — logic can be built and verified even if the runtime file is added separately.
 - Phase Most Affected: Phase 01
+- Phase 01 Outcome: The primary vendored path succeeded with pinned Phaser 3.80.0 at
+  `vendor/phaser.min.js`; `index.html` references it locally and automated validation remains
+  Phaser-independent. Review node `8dae50e7-00e4-4266-9248-9d5e75269d48` found no residual
+  blocking acquisition risk.
 
 ### R2: Difficulty tuning misses the 30–45 s target
+- Status: Open — not exercised in Phase 01
 - Category: Correctness
 - Description: Rise speed, spawn interval, and the value-scaling curve must combine so a typical
   first-time player loses in ~30–45 s. Mis-tuned constants make sessions too short or too long.
@@ -39,6 +45,7 @@
 - Phase Most Affected: Phase 03 (introduced in Phase 02)
 
 ### R3: Phaser scenes are hard to unit-test
+- Status: Open — mitigation established, residual manual validation remains
 - Category: Correctness
 - Description: Rendering/input code bound to Phaser is not testable in a headless Node runner,
   risking untested logic leaking into scenes.
@@ -50,8 +57,11 @@
   and are unit/integration tested; scenes are thin adapters. Pure helpers used by scenes (tint
   mapping, tap→column, cooldown gate) live in core and are unit-tested independently.
 - Phase Most Affected: Phase 04
+- Phase 01 Outcome: The shell keeps Phaser references outside `src/core/`, and the core-purity
+  test passed. Browser rendering remains a manual validation boundary (CF-01).
 
 ### R4: Non-deterministic core breaks reproducibility and tests
+- Status: Open — implementation begins in Phase 02
 - Category: Correctness
 - Description: Direct `Math.random()` or wall-clock reads in the core would make sessions
   irreproducible and tests flaky.
@@ -64,6 +74,7 @@
 - Phase Most Affected: Phase 02
 
 ### R5: Mobile performance under particle/glow load
+- Status: Open — not exercised in Phase 01
 - Category: Performance
 - Description: Neon glow and explosion particles can drop frame rate on mid-range mobile GPUs.
 - Likelihood: Medium
@@ -75,6 +86,7 @@
 - Phase Most Affected: Phase 05
 
 ### R6: Collision cascade / row-clear edge cases
+- Status: Open — implementation begins in Phase 03
 - Category: Correctness
 - Description: The bomb chewing through multiple bricks in one fall, exact-match full-row clears,
   and simultaneous events create ordering/edge-case bugs (e.g. bomb reduced to 0, empty rows,
@@ -89,6 +101,7 @@
 - Phase Most Affected: Phase 03
 
 ### R7: Mobile-portrait scaling / input across viewports
+- Status: Partially mitigated — shell configuration delivered; browser confirmation pending
 - Category: Correctness
 - Description: Varying device aspect ratios and touch vs mouse input can misplace elements or
   mis-map tap position to brick columns.
@@ -100,6 +113,9 @@
   coordinates through Phaser's scale manager; unit-test the pure tap→column mapping against the
   design resolution.
 - Phase Most Affected: Phase 04
+- Phase 01 Outcome: The 720×1280 FIT/CENTER_BOTH configuration and portrait viewport metadata are
+  implemented and structurally accepted. Actual browser/viewport behavior was not executable in
+  the headless lane and is carried as CF-01.
 
 ---
 
@@ -133,6 +149,5 @@
 - Q1: Will the empirically-tuned difficulty constants hold the 30–45 s window across the range of
   real first-time players, or only under the test seed? Resolved by playtest feedback during
   Phases 03–06.
-- Q2: Is vendoring the Phaser runtime acceptable given no stated file-size limit, or is a CDN
-  reference preferred for size? Defaulting to vendoring for self-containment (R1); revisit if a
-  size constraint emerges.
+- Q2: Resolved for the current scope. Phaser 3.80.0 is vendored for self-containment, consistent
+  with the absence of a file-size constraint. Reopen only if product scope introduces one.

@@ -8,7 +8,7 @@
   - Product: Operator (via intake)
   - Architecture: lane:arch / stage:baseline
   - Build: lane:build (per-phase)
-- Status: Draft
+- Status: In Delivery — Phase 01 accepted
 - Last Updated: 2026-08-14
 
 ---
@@ -35,6 +35,13 @@ survival loop with neon art, juice effects, value-based scoring, and a game-over
   exactly as specified, bricks rise and end the game at the top, values scale upward over time,
   score reflects value removed/cleared, the neon visuals + juice are present, and the game-over
   CTA restarts a fresh session. All core rules are covered by passing unit/integration tests.
+
+**Implemented state after Phase 01:** The repository now contains the 720×1280 Phaser shell,
+vendored Phaser 3.80.0 runtime, central Phaser-free tunables, and a `node:test` harness. The shell
+renders the initial neon gradient through `BootScene` → `GameScene`. Simulation, gameplay input,
+procedural game art, effects, and game-over flow remain planned for Phases 02–06. This state is
+grounded in Phase 01 review node `8dae50e7-00e4-4266-9248-9d5e75269d48`, which accepted the phase
+after 9/9 tests and shell syntax checks passed.
 
 ---
 
@@ -66,17 +73,22 @@ survival loop with neon art, juice effects, value-based scoring, and a game-over
 
 ## 3. System Context
 
-- **Current architecture summary:** None. The repo contains only an empty `Test.txt` and the
-  Takumi `takumi/` runs directory. There is no `REPO_MAP.md`, no build system, no existing Phaser
-  shell. This feature establishes the entire runtime from scratch.
-- **Relevant modules/services:** None pre-existing. New code lives under a game source root
-  (e.g. `src/`), tests under `test/`, entry `index.html` at repo root.
-- **Relevant data flows:** New. The only data flow is in-process: input → simulation core → state
-  → render. Nothing is persisted; nothing leaves the browser tab.
+- **Current architecture summary:** Phase 01 established a standalone Phaser browser shell and
+  an offline headless test harness. `index.html` loads the vendored Phaser 3.80.0 runtime before
+  the ES-module entry; `src/main.js` maps engine-agnostic scale tokens onto Phaser enums and starts
+  `BootScene` → `GameScene`. `src/core/config.js` is the only implemented core module and remains
+  Phaser/DOM-free under an automated purity check. The simulation model is not implemented yet.
+- **Relevant modules/services:** `index.html`, `src/main.js`, `src/scenes/BootScene.js`,
+  `src/scenes/GameScene.js`, `src/core/config.js`, `test/config.test.js`, and
+  `vendor/phaser.min.js`. Future core and rendering modules in §4 remain planned, not delivered.
+- **Relevant data flows:** The implemented flow is browser host → Phaser boot → scene transition
+  → static neon-gradient render. The planned input → simulation → state → render flow begins in
+  later phases. Nothing is persisted and nothing leaves the browser tab.
 - **Current constraints:** Must use Phaser (PRD §5). Must run standalone in a browser, mobile
   portrait first. No network/backend. No ad-network packaging required this version.
 
-> There is no `REPO_MAP.md` to reference; this TDD is the initial architectural record for the repo.
+> There is no generated `REPO_MAP.md` to reference. Phase 01 implementation state is recorded by
+> review node `8dae50e7-00e4-4266-9248-9d5e75269d48` and its accepted review artifact.
 
 ---
 
@@ -85,18 +97,22 @@ survival loop with neon art, juice effects, value-based scoring, and a game-over
 ### 4.1 Components and Responsibilities
 
 - **Entry / Host (`index.html`, `src/main.js`)**
+  - Delivery status: Implemented and accepted in Phase 01.
   - Responsibility: Load the Phaser 3 runtime, define the game config (portrait design resolution,
     scale mode, scene list), and start the game.
   - Owned by repo: Takumi-Playable.
   - Integration points: Instantiates Phaser `Game`; registers scenes.
 
 - **Config / Tunables (`src/core/config.js`)**
+  - Delivery status: Implemented and accepted in Phase 01; values remain intentionally tunable
+    for the logic phases.
   - Responsibility: Single source of truth for all tunable constants — design resolution, grid
     dimensions, rise speed, spawn interval, bomb fall speed, cooldown, value ranges, difficulty
     curve parameters, tint endpoints. No logic, no Phaser import.
   - Integration points: Imported by both the simulation core and the render layer.
 
 - **Simulation Core (`src/core/*.js`) — the heart, Phaser-free**
+  - Delivery status: Planned for Phases 02–03; only `config.js` exists after Phase 01.
   - `rng.js`: seedable deterministic RNG (injectable); the only randomness source in the core.
   - `difficulty.js`: pure functions mapping elapsed time → brick value and → bomb value ranges
     (distribution drifts upward over time; brick values clamped to [1,30]).
@@ -114,11 +130,14 @@ survival loop with neon art, juice effects, value-based scoring, and a game-over
     references and never reads wall-clock time or `Math.random` directly.
 
 - **Neon Art Factory (`src/render/neon.js`)**
+  - Delivery status: Planned for Phase 04; not present after Phase 01.
   - Responsibility: Procedurally generate neon textures/graphics (background gradient + glow,
     brick body + glow, bomb, danger line, particle sprite) and the green→red tint mapping helper.
   - Integration points: Called by scenes during preload/create to register generated textures.
 
 - **Render/Input Layer (Phaser scenes, `src/scenes/*.js`)**
+  - Delivery status: The boot scene and static-background game scene are implemented; simulation
+    binding, input, effects, and `GameOverScene` remain planned for Phases 04–06.
   - `BootScene.js`: generate art/textures, then start `GameScene`.
   - `GameScene.js`: instantiate a `GameModel`, drive it with Phaser's delta time each frame,
     render bricks/bomb/danger line from model state, map taps → `model.dropBomb(x)` (respecting
