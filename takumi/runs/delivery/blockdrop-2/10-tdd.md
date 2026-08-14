@@ -8,7 +8,7 @@
   - Product: Operator (via intake)
   - Architecture: lane:arch / stage:baseline
   - Build: lane:build (per-phase)
-- Status: In Delivery — Phase 01 accepted
+- Status: In Delivery — Phases 01–02 accepted
 - Last Updated: 2026-08-14
 
 ---
@@ -36,12 +36,14 @@ survival loop with neon art, juice effects, value-based scoring, and a game-over
   score reflects value removed/cleared, the neon visuals + juice are present, and the game-over
   CTA restarts a fresh session. All core rules are covered by passing unit/integration tests.
 
-**Implemented state after Phase 01:** The repository now contains the 720×1280 Phaser shell,
-vendored Phaser 3.80.0 runtime, central Phaser-free tunables, and a `node:test` harness. The shell
-renders the initial neon gradient through `BootScene` → `GameScene`. Simulation, gameplay input,
-procedural game art, effects, and game-over flow remain planned for Phases 02–06. This state is
-grounded in Phase 01 review node `8dae50e7-00e4-4266-9248-9d5e75269d48`, which accepted the phase
-after 9/9 tests and shell syntax checks passed.
+**Implemented state after Phase 02:** The repository contains the accepted 720×1280 Phaser shell,
+vendored Phaser 3.80.0 runtime, central Phaser-free tunables, and a `node:test` harness. Phase 02
+added the deterministic RNG, elapsed-time difficulty/value functions, immutable grid/row helpers,
+and monotonic score accumulator under `src/core/`. These primitives are Phaser/DOM-free, draw
+randomness only through an injected seeded RNG, and are covered by the 49/49-test accepted suite.
+The simulation tick/collision loop, gameplay input, procedural game art, effects, and game-over
+flow remain planned for Phases 03–06. This state is grounded in Phase 02 review node
+`d77b016e-5282-449c-a35c-51e6deb4cb95`, which recorded `accept` with no findings.
 
 ---
 
@@ -76,19 +78,21 @@ after 9/9 tests and shell syntax checks passed.
 - **Current architecture summary:** Phase 01 established a standalone Phaser browser shell and
   an offline headless test harness. `index.html` loads the vendored Phaser 3.80.0 runtime before
   the ES-module entry; `src/main.js` maps engine-agnostic scale tokens onto Phaser enums and starts
-  `BootScene` → `GameScene`. `src/core/config.js` is the only implemented core module and remains
-  Phaser/DOM-free under an automated purity check. The simulation model is not implemented yet.
+  `BootScene` → `GameScene`. Phase 02 established the pure simulation primitives in
+  `src/core/rng.js`, `difficulty.js`, `grid.js`, and `scoring.js`; dynamic purity guards cover the
+  full core tree. The orchestrating simulation model and collision resolver are not implemented.
 - **Relevant modules/services:** `index.html`, `src/main.js`, `src/scenes/BootScene.js`,
-  `src/scenes/GameScene.js`, `src/core/config.js`, `test/config.test.js`, and
-  `vendor/phaser.min.js`. Future core and rendering modules in §4 remain planned, not delivered.
+  `src/scenes/GameScene.js`, `src/core/config.js`, `rng.js`, `difficulty.js`, `grid.js`,
+  `scoring.js`, their five `node:test` suites, and `vendor/phaser.min.js`. Collision, simulation,
+  and rendering modules described in §4 remain planned.
 - **Relevant data flows:** The implemented flow is browser host → Phaser boot → scene transition
   → static neon-gradient render. The planned input → simulation → state → render flow begins in
   later phases. Nothing is persisted and nothing leaves the browser tab.
 - **Current constraints:** Must use Phaser (PRD §5). Must run standalone in a browser, mobile
   portrait first. No network/backend. No ad-network packaging required this version.
 
-> There is no generated `REPO_MAP.md` to reference. Phase 01 implementation state is recorded by
-> review node `8dae50e7-00e4-4266-9248-9d5e75269d48` and its accepted review artifact.
+> There is no generated `REPO_MAP.md` to reference. Current implementation state is recorded by
+> Phase 02 review node `d77b016e-5282-449c-a35c-51e6deb4cb95` and its accepted review artifact.
 
 ---
 
@@ -112,7 +116,8 @@ after 9/9 tests and shell syntax checks passed.
   - Integration points: Imported by both the simulation core and the render layer.
 
 - **Simulation Core (`src/core/*.js`) — the heart, Phaser-free**
-  - Delivery status: Planned for Phases 02–03; only `config.js` exists after Phase 01.
+  - Delivery status: RNG, difficulty/value scaling, grid/row helpers, and scoring implemented and
+    accepted in Phase 02; collision resolution and the orchestrating `GameModel` remain Phase 03.
   - `rng.js`: seedable deterministic RNG (injectable); the only randomness source in the core.
   - `difficulty.js`: pure functions mapping elapsed time → brick value and → bomb value ranges
     (distribution drifts upward over time; brick values clamped to [1,30]).
@@ -152,7 +157,7 @@ after 9/9 tests and shell syntax checks passed.
 ### 4.2 Data and State Model
 
 - **Entities / state objects (all in abstract game units, owned by the simulation core):**
-  - `Brick { id, col, value, y (top position), alive, fadeInProgress }`
+  - `Brick { id, row, col, value, y (top position), alive, fadeInProgress }`
   - `BombState { active, x/col, y, value }` (at most one active bomb).
   - `GameModel state { time, bricks[], bomb, score, cooldownRemaining, difficultyLevel,
     status: 'playing' | 'gameover', rngSeed, pendingEvents[] }` where `pendingEvents` is a

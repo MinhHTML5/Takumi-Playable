@@ -4,7 +4,7 @@
 
 - Feature Slug: blockdrop-2
 - Related TDD: `./10-tdd.md`
-- Status: In Delivery — Phase 01 accepted; Phase 02 next
+- Status: In Delivery — Phases 01–02 accepted; Phase 03 next
 - Last Updated: 2026-08-14
 
 ---
@@ -37,6 +37,10 @@ Single repo throughout: **Takumi-Playable**.
 - Key Risks / Notes: Vendoring/pinning Phaser (R1). Foundation for all later phases.
 
 ### Phase 02: Simulation Core — Values, Grid & Scoring
+- Outcome: Accepted on 2026-08-14 by review node
+  `d77b016e-5282-449c-a35c-51e6deb4cb95`. Deterministic RNG, upward-scaling value generation,
+  grid/row helpers, and monotonic scoring were delivered with 49/49 automated tests passing and
+  no review findings.
 - Goal: Deterministic, Phaser-free primitives for value generation, the grid/brick/bomb data
   model, and scoring.
 - Scope: `src/core/rng.js` (seedable RNG), `src/core/difficulty.js` (elapsed→brick value in [1,30]
@@ -44,11 +48,11 @@ Single repo throughout: **Takumi-Playable**.
   row-clear helper), `src/core/scoring.js`. No simulation loop yet; no rendering.
 - Repos touched: Takumi-Playable.
 - Exit Criteria:
-  - [ ] Brick values always ∈ [1,30]; mean value increases with elapsed time under a fixed seed
+  - [x] Brick values always ∈ [1,30]; mean value increases with elapsed time under a fixed seed
         (unit). (INV-7)
-  - [ ] Bomb value range scales upward with elapsed time (unit).
-  - [ ] Seeded RNG is deterministic — same seed reproduces the same sequence (unit). (INV-2)
-  - [ ] Scoring accumulates value monotonically and correctly (unit). (INV-4)
+  - [x] Bomb value range scales upward with elapsed time (unit).
+  - [x] Seeded RNG is deterministic — same seed reproduces the same sequence (unit). (INV-2)
+  - [x] Scoring accumulates value monotonically and correctly (unit). (INV-4)
 - Key Risks / Notes: Difficulty tuning risk (R2) begins here; determinism (R4).
 
 ### Phase 03: Simulation Loop — Collision, Rising & Game Over
@@ -134,8 +138,9 @@ the shell (01) exists, but rendering (04) cannot start until the model (03) is r
 
 ## 3. Deferred Work Registry
 
-Phase 01 left three non-blocking, review-traceable items. Full fields and rationale are in
-`phase-01/32-carry-forward.md`.
+Phases 01–02 leave three non-blocking, review-traceable items. Phase 02 deliberately re-deferred
+all three because it changed only the Phaser-free core. Current fields and rationale are in
+`phase-02/32-carry-forward.md`.
 
 - CF-01 — execute the manual mobile-portrait browser boot check before relying on the shell for
   Phase 04 rendering integration.
