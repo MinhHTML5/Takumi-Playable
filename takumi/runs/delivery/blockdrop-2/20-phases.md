@@ -4,7 +4,7 @@
 
 - Feature Slug: blockdrop-2
 - Related TDD: `./10-tdd.md`
-- Status: Draft
+- Status: In Delivery — Phase 01 accepted; Phase 02 next
 - Last Updated: 2026-08-14
 
 ---
@@ -20,6 +20,9 @@ headlessly before any rendering exists.
 Single repo throughout: **Takumi-Playable**.
 
 ### Phase 01: Playable Shell & Test Harness
+- Outcome: Accepted on 2026-08-14 by review node
+  `8dae50e7-00e4-4266-9248-9d5e75269d48`. The vendored Phaser shell, central tunables, and
+  headless harness were delivered with 9/9 automated tests and all shell syntax checks passing.
 - Goal: Establish a bootable mobile-portrait Phaser runtime and the headless test harness.
 - Scope: `index.html` loading a pinned/vendored Phaser 3; `src/main.js` game config (720×1280
   design resolution, `Scale.FIT` + `CENTER_BOTH`, scene list); a minimal `BootScene`/`GameScene`
@@ -27,9 +30,10 @@ Single repo throughout: **Takumi-Playable**.
   wired via a `package.json` `test` script (`node --test`) with a smoke test importing `config.js`.
 - Repos touched: Takumi-Playable.
 - Exit Criteria:
-  - [ ] Page boots in a browser in portrait and renders a background (manual DoD check).
-  - [ ] `node --test` runs and the config smoke test passes (unit).
-  - [ ] `config.js` exposes the tunable set defined in the TDD and imports no Phaser.
+  - [ ] Page boots in a browser in portrait and renders a background (manual DoD check; carried
+        as CF-01 because the accepted headless review could verify only structural preconditions).
+  - [x] `node --test` runs and the config smoke test passes (unit).
+  - [x] `config.js` exposes the tunable set defined in the TDD and imports no Phaser.
 - Key Risks / Notes: Vendoring/pinning Phaser (R1). Foundation for all later phases.
 
 ### Phase 02: Simulation Core — Values, Grid & Scoring
@@ -130,5 +134,11 @@ the shell (01) exists, but rendering (04) cannot start until the model (03) is r
 
 ## 3. Deferred Work Registry
 
-No deferrals yet. Review-driven deferrals and any tuning follow-ups will be recorded here as
-phases execute.
+Phase 01 left three non-blocking, review-traceable items. Full fields and rationale are in
+`phase-01/32-carry-forward.md`.
+
+- CF-01 — execute the manual mobile-portrait browser boot check before relying on the shell for
+  Phase 04 rendering integration.
+- CF-02 — remove the pre-existing empty `Test.txt` during an explicitly scoped cleanup task.
+- CF-03 — consider a debug-only warning for unknown scale configuration tokens when shell
+  observability is next touched.
