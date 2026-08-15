@@ -8,8 +8,8 @@
   - Product: Operator (via intake)
   - Architecture: lane:arch / stage:baseline
   - Build: lane:build (per-phase)
-- Status: In Delivery — Phases 01–03 accepted
-- Last Updated: 2026-08-14
+- Status: In Delivery — Phases 01–04 accepted
+- Last Updated: 2026-08-15
 
 ---
 
@@ -36,16 +36,18 @@ survival loop with neon art, juice effects, value-based scoring, and a game-over
   score reflects value removed/cleared, the neon visuals + juice are present, and the game-over
   CTA restarts a fresh session. All core rules are covered by passing unit/integration tests.
 
-**Implemented state after Phase 03:** The repository contains the accepted 720×1280 Phaser shell,
+**Implemented state after Phase 04:** The repository contains the accepted 720×1280 Phaser shell,
 vendored Phaser 3.80.0 runtime, central Phaser-free tunables, and a `node:test` harness. Phase 02
 added the deterministic RNG, elapsed-time difficulty/value functions, immutable grid/row helpers,
 and monotonic score accumulator under `src/core/`. Phase 03 added the pure collision resolver and
 the deterministic `GameModel`, including rising/spawn timing, bomb cooldown and cascade, exact-row
-clears, scoring, reset, events, and game-over detection. The complete core is Phaser/DOM-free,
-draws randomness only through an injected seeded RNG, and is covered by the 85/85-test accepted
-suite. Gameplay input, procedural game art, effects, and the game-over presentation remain planned
-for Phases 04–06. This state is grounded in Phase 03 review node
-`e75fa37f-ff0f-4965-b4cd-1d9e683e0f40`, which recorded `accept` with no blocking findings.
+clears, scoring, reset, events, and game-over detection. Phase 04 added pure tint and fixed-step
+helpers, generated-once procedural neon textures, and the thin `GameScene` adapter that renders
+model snapshots, forwards pointer input, and advances the model through bounded sub-steps. The
+complete core remains Phaser/DOM-free and deterministic; the accepted suite now covers 99/99
+tests. Game-feel effects and the game-over presentation remain planned for Phases 05–06. This
+state is grounded in Phase 04 review node `ef323933-2bed-4059-a7d1-ef4c953d7ce5`, which recorded
+`accept` with no blocking findings.
 
 ---
 
@@ -83,20 +85,23 @@ for Phases 04–06. This state is grounded in Phase 03 review node
   `BootScene` → `GameScene`. Phases 02–03 established the complete pure simulation core in
   `src/core/rng.js`, `difficulty.js`, `grid.js`, and `scoring.js`; dynamic purity guards cover the
   full core tree. `collision.js` resolves individual interactions and `simulation.js` owns the
-  deterministic `GameModel` and its tick pipeline.
+  deterministic `GameModel` and its tick pipeline. Phase 04 binds that model to Phaser through
+  pure tint and fixed-step helpers, generated-once procedural textures, and a snapshot-driven
+  `GameScene`.
 - **Relevant modules/services:** `index.html`, `src/main.js`, `src/scenes/BootScene.js`,
   `src/scenes/GameScene.js`, `src/core/config.js`, `rng.js`, `difficulty.js`, `grid.js`,
-  `scoring.js`, `collision.js`, `simulation.js`, their eight `node:test` suites, and
-  `vendor/phaser.min.js`. Rendering modules described in §4 remain planned.
-- **Relevant data flows:** The implemented flow is browser host → Phaser boot → scene transition
-  → static neon-gradient render. The model-side simulation → state/event flow is implemented;
-  input and rendering bind to it in Phase 04. Nothing is persisted and nothing leaves the browser
-  tab.
+  `scoring.js`, `collision.js`, `simulation.js`, `src/render/tint.js`, `loop.js`, `neon.js`, their
+  ten `node:test` suites, and `vendor/phaser.min.js`.
+- **Relevant data flows:** Browser host → Phaser boot → generated texture registration →
+  `GameScene`; pointer input → `GameModel.dropBomb`; Phaser frame delta → bounded `fixedSteps` →
+  `GameModel.tick`; read-only snapshots → brick/bomb/danger-line/score reconciliation. Model
+  events are not yet consumed; Phase 05 attaches effects to them. Nothing is persisted and
+  nothing leaves the browser tab.
 - **Current constraints:** Must use Phaser (PRD §5). Must run standalone in a browser, mobile
   portrait first. No network/backend. No ad-network packaging required this version.
 
 > There is no generated `REPO_MAP.md` to reference. Current implementation state is recorded by
-> Phase 03 review node `e75fa37f-ff0f-4965-b4cd-1d9e683e0f40` and its accepted review artifact.
+> Phase 04 review node `ef323933-2bed-4059-a7d1-ef4c953d7ce5` and its accepted review artifact.
 
 ---
 
@@ -140,20 +145,27 @@ for Phases 04–06. This state is grounded in Phase 03 review node
     references and never reads wall-clock time or `Math.random` directly.
 
 - **Neon Art Factory (`src/render/neon.js`)**
-  - Delivery status: Planned for Phase 04; not present after Phase 01.
-  - Responsibility: Procedurally generate neon textures/graphics (background gradient + glow,
-    brick body + glow, bomb, danger line, particle sprite) and the green→red tint mapping helper.
-  - Integration points: Called by scenes during preload/create to register generated textures.
+  - Delivery status: Implemented and accepted in Phase 04 for the background, brick, bomb, and
+    danger-line textures. Particle presentation remains Phase 05 scope.
+  - Responsibility: Procedurally generate and idempotently register reusable neon textures. Brick,
+    bomb, and danger-line bases are neutral white so per-instance tinting remains accurate.
+  - Integration points: `BootScene.create()` calls `generateTextures(this)` before starting
+    `GameScene`; the scene imports stable texture-key constants.
+
+- **Render Helpers (`src/render/tint.js`, `src/render/loop.js`)**
+  - Delivery status: Implemented and accepted in Phase 04.
+  - Responsibility: Map values monotonically from configured green→red endpoints and split
+    variable frame deltas into bounded simulation steps. Both helpers are Phaser/DOM-free and
+    covered by `node:test`.
 
 - **Render/Input Layer (Phaser scenes, `src/scenes/*.js`)**
-  - Delivery status: The boot scene and static-background game scene are implemented; simulation
-    binding, input, effects, and `GameOverScene` remain planned for Phases 04–06.
+  - Delivery status: Boot wiring plus the simulation/render/input binding are implemented and
+    accepted through Phase 04. Effects and `GameOverScene` remain planned for Phases 05–06.
   - `BootScene.js`: generate art/textures, then start `GameScene`.
-  - `GameScene.js`: instantiate a `GameModel`, drive it with Phaser's delta time each frame,
-    render bricks/bomb/danger line from model state, map taps → `model.dropBomb(x)` (respecting
-    the model's cooldown), and trigger juice effects in response to model events (explosion,
-    row-clear shake, spawn fade-in, danger-line pulse). On game-over, transition to
-    `GameOverScene`.
+  - `GameScene.js`: instantiates a `GameModel`, splits Phaser delta time into bounded steps, renders
+    bricks/bomb/danger line and live score from read-only snapshots, maps taps →
+    `model.dropBomb(x)`, and freezes on game over. Phase 05 will consume model events for juice;
+    Phase 06 will transition to `GameOverScene`.
   - `GameOverScene.js`: fade in, show final score and the fake `Play` CTA; on CTA/tap, restart a
     fresh `GameScene` (new seed/fresh model).
   - Responsibility: Presentation and input only. **Never** mutates simulation state directly —
@@ -186,10 +198,11 @@ render layer and tests depend on a fixed shape.
 - `model.getState() -> readonly snapshot` — bricks, bomb, score, status, danger metrics.
 - `model.consumeEvents() -> Event[]` — drain and return juice events since last call.
 - `model.reset()` / construct anew — return to the initial state for restart.
-- Collision overlap currently uses the bomb's point position. With accepted configuration,
-  per-tick travel (15 game units at 60 Hz) is below the 120-unit row height, so a brick cannot be
-  skipped; changing that relationship requires preserving the constraint or adopting swept
-  overlap. This accepted limitation is traced to Phase 03 review advisory A-1.
+- Collision overlap uses the bomb's point position. Phase 04 bounds each model tick to 0.05 s via
+  `fixedSteps`, so maximum travel is 45 game units versus the 120-unit row height. The relationship
+  is pinned by tests; changing bomb speed, row height, or the bound requires preserving it or
+  adopting swept overlap. This reconciles Phase 03 review advisory A-1 through Phase 04 tasks
+  T3/T4/T6.
 - No HTTP endpoints, routes, hubs, DTOs, or schemas exist (standalone browser app).
 
 ### 4.4 Invariants (Non-Negotiables)
@@ -290,5 +303,6 @@ an operator round-trip in a headless run. All are centralized in `config.js` for
   three fixed seeds exercised by integration tests. Whether that tuning produces the intended
   duration and feel for real first-time players remains a manual playtest question for the
   browser phases; the tunables remain centralized in `config.js`.
-- Q2: Exact neon palette values and glow intensities are an art decision finalized during the
-  render/feel phases; they do not affect architecture.
+- Q2: Static neon palette endpoints and generated texture treatment are implemented in Phase 04.
+  Dynamic effect intensity and particle tuning remain a Phase 05 art/performance decision and do
+  not affect architecture.

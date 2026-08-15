@@ -4,8 +4,8 @@
 
 - Feature Slug: blockdrop-2
 - Related TDD: `./10-tdd.md`
-- Status: In Delivery — Phases 01–03 accepted; Phase 04 next
-- Last Updated: 2026-08-14
+- Status: In Delivery — Phases 01–04 accepted; Phase 05 next
+- Last Updated: 2026-08-15
 
 ---
 
@@ -76,19 +76,24 @@ Single repo throughout: **Takumi-Playable**.
 - Key Risks / Notes: Depends on Phase 02. Highest logic-complexity phase; heaviest test coverage.
 
 ### Phase 04: Rendering & Input Binding
+- Outcome: Accepted on 2026-08-15 by review node
+  `ef323933-2bed-4059-a7d1-ef4c953d7ce5`. Pure tint and fixed-step helpers, generated-once neon
+  textures, and the snapshot-driven Phaser render/input adapter were delivered with 99/99 tests
+  passing and all changed JavaScript parsing cleanly. The manual browser walkthrough remains
+  explicitly carried as CF-01.
 - Goal: Make the simulation visible and playable in Phaser.
-- Scope: `src/render/neon.js` (procedural neon textures for background, bricks, bomb, danger line;
-  green→red tint mapping helper) and `GameScene` wiring — instantiate `GameModel`, drive it with
-  Phaser delta time, render bricks/bomb/danger line from `getState`, and map taps (snapped to
-  column) → `model.dropBomb`. No juice yet beyond static rendering.
+- Scope: `src/render/neon.js` (procedural neon textures), pure `valueToTint` and `fixedSteps`
+  helpers, and `GameScene` wiring — instantiate `GameModel`, drive it with bounded Phaser delta
+  steps, render bricks/bomb/danger line/score from `getState`, and map taps → `model.dropBomb`.
+  No juice yet beyond static rendering.
 - Repos touched: Takumi-Playable.
 - Exit Criteria:
   - [ ] Bricks, bomb, and danger line render at model positions; the loop is playable end-to-end
         in a browser (manual DoD check).
-  - [ ] Tint mapping is monotonic green→red across [1,30] and updates on partial damage (unit for
-        the mapping fn; manual for visuals). (INV-7)
-  - [ ] Tap position maps to the correct brick column and triggers a drop only when allowed (unit
-        for the mapping/gate; manual for feel).
+  - [x] Tint mapping is monotonic green→red across [1,30]; `GameScene` applies current brick values
+        on every reconciliation, including partial damage (unit + structural review). (INV-7)
+  - [x] Tap position is forwarded in game-space coordinates and the accepted model maps it to a
+        column while enforcing cooldown/single-bomb rules (regression + structural review).
 - Key Risks / Notes: Depends on Phases 01 + 03. Scene stays thin; no state mutation outside the
   model (INV-3). Testability-of-Phaser risk (R3).
 
@@ -141,14 +146,13 @@ the shell (01) exists, but rendering (04) cannot start until the model (03) is r
 
 ## 3. Deferred Work Registry
 
-Phase 03 leaves four non-blocking, review-traceable items. It re-deferred the three inherited
-items because it changed only the Phaser-free core and recorded one accepted collision-overlap
-constraint. Current fields and rationale are in `phase-03/32-carry-forward.md`.
+Phase 04 leaves three non-blocking, review-traceable items. It discharged the collision-step
+constraint (former CF-04) through `fixedSteps` and a real-config invariant test, while retaining
+the manual browser check and two scoped cleanup/observability items. Current fields and rationale
+are in `phase-04/32-carry-forward.md`.
 
-- CF-01 — execute the manual mobile-portrait browser boot check before relying on the shell for
-  Phase 04 rendering integration.
-- CF-02 — remove the pre-existing empty `Test.txt` during an explicitly scoped cleanup task.
+- CF-01 — execute the manual mobile-portrait browser boot/play check for the delivered render and
+  input binding before final acceptance.
+- CF-02 — remove the pre-existing empty `Test.txt` during Phase 06 final integration cleanup.
 - CF-03 — consider a debug-only warning for unknown scale configuration tokens when shell
   observability is next touched.
-- CF-04 — preserve the accepted bomb-travel/row-height constraint or adopt swept collision if
-  future tuning can move a bomb across more than one row height per tick.
