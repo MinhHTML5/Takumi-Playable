@@ -27,6 +27,7 @@ export const TEX_BRICK = 'neon-brick';
 export const TEX_BOMB = 'neon-bomb';
 export const TEX_DANGER_LINE = 'neon-danger-line';
 export const TEX_PARTICLE = 'neon-particle';
+export const TEX_SHOCKWAVE = 'neon-shockwave';
 
 // Convenience bundle for consumers that want the whole set.
 export const TEXTURE_KEYS = {
@@ -35,6 +36,7 @@ export const TEXTURE_KEYS = {
   bomb: TEX_BOMB,
   dangerLine: TEX_DANGER_LINE,
   particle: TEX_PARTICLE,
+  shockwave: TEX_SHOCKWAVE,
 };
 
 // Neutral white — the base colour for tintable art. `setTint(colour)`
@@ -247,6 +249,37 @@ function generateParticle(scene) {
   g.destroy();
 }
 
+// (f) Neutral white shockwave ring (BlockDrop-2 FR-3): a hollow neon ring with a
+// soft inner/outer falloff, emitted white so the scene tints it per collision
+// outcome and scales it outward while fading. Drawn at a base radius the scene
+// scales up via `config.effects.shockwave` (start→end scale). Generated once and
+// reused for every burst (TDD §7 reuse).
+function generateShockwave(scene) {
+  if (scene.textures.exists(TEX_SHOCKWAVE)) return;
+
+  const size = 128;
+  const c = size / 2;
+  const baseR = size * 0.36;
+
+  const g = scratchGraphics(scene);
+
+  // Soft outer + inner glow bands around the ring, narrowing to a bright core.
+  const bands = 7;
+  for (let i = bands; i >= 1; i--) {
+    const t = i / bands;
+    const thickness = 2 + t * 16;
+    const alpha = 0.1 * (1 - t) + 0.04;
+    g.lineStyle(thickness, WHITE, alpha);
+    g.strokeCircle(c, c, baseR);
+  }
+  // Bright crisp ring.
+  g.lineStyle(5, WHITE, 1);
+  g.strokeCircle(c, c, baseR);
+
+  g.generateTexture(TEX_SHOCKWAVE, size, size);
+  g.destroy();
+}
+
 // -----------------------------------------------------------------------------
 // Public entry point
 // -----------------------------------------------------------------------------
@@ -267,6 +300,7 @@ export function generateTextures(scene) {
   generateBomb(scene);
   generateDangerLine(scene);
   generateParticle(scene);
+  generateShockwave(scene);
   return TEXTURE_KEYS;
 }
 

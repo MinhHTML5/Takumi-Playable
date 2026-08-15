@@ -28,6 +28,9 @@ const N = 2000; // sample size for statistical / bounds checks
 
 const BRICK_MIN = config.values.brickMin; // 1
 const BRICK_MAX = config.values.brickMax; // 30
+// FR-5: bombs have their OWN range, decoupled from the brick cap.
+const BOMB_MIN = config.values.bombMin; // 1
+const BOMB_MAX = config.values.bombMax; // 60
 
 // A large elapsed value well past the level cap (maxLevel * levelInterval).
 const HUGE = config.difficulty.levelInterval * config.difficulty.maxLevel * 1000;
@@ -77,18 +80,29 @@ test('INV-7 hard bound: rollBrickValue is always an integer in [1,30]', () => {
   }
 });
 
-test('INV-7 hard bound: rollBombValue is always an integer in [1,30]', () => {
+test('FR-5 hard bound: rollBombValue is always an integer in [bombMin,bombMax] ([1,60])', () => {
   for (const elapsed of [0, 40, HUGE]) {
     const rng = createRng(4321 + elapsed);
     for (let i = 0; i < N; i++) {
       const v = rollBombValue(elapsed, rng, config);
       assert.ok(Number.isInteger(v), `bomb value must be integer (got ${v})`);
       assert.ok(
-        v >= BRICK_MIN && v <= BRICK_MAX,
-        `bomb value out of [1,30] at elapsed ${elapsed} (got ${v})`,
+        v >= BOMB_MIN && v <= BOMB_MAX,
+        `bomb value out of [${BOMB_MIN},${BOMB_MAX}] at elapsed ${elapsed} (got ${v})`,
       );
     }
   }
+});
+
+test('FR-5: bombs can exceed the brick cap (decoupled range reaches above brickMax)', () => {
+  // At the difficulty cap the bomb range must climb above brickMax (30): a big
+  // late-game bomb can out-value the biggest brick and decisively cascade.
+  const late = bombValueRange(HUGE, config);
+  assert.ok(
+    late.max > BRICK_MAX,
+    `bomb max ${late.max} must exceed brickMax ${BRICK_MAX} at the cap`,
+  );
+  assert.ok(late.max <= BOMB_MAX, `bomb max ${late.max} must not exceed bombMax ${BOMB_MAX}`);
 });
 
 test('brickValueRange: bounds within [1,30] and non-decreasing in elapsed', () => {
@@ -105,13 +119,38 @@ test('brickValueRange: bounds within [1,30] and non-decreasing in elapsed', () =
   }
 });
 
-test('bombValueRange: bounds within [1,30] and non-decreasing in elapsed (scales upward)', () => {
+test('FR-4: brick curve opens at [brickMin,brickStartMax] and grows its UPPER cap to brickMax, lower bound fixed', () => {
+  const early = brickValueRange(0, config);
+  assert.equal(early.min, BRICK_MIN, 'early lower bound is brickMin');
+  assert.equal(
+    early.max,
+    config.values.brickStartMax,
+    'early upper bound is the small starting cap (brickStartMax)',
+  );
+  // Lower bound stays at brickMin for the WHOLE session (never drifts up).
+  for (let elapsed = 0; elapsed <= HUGE; elapsed += config.difficulty.levelInterval) {
+    assert.equal(
+      brickValueRange(elapsed, config).min,
+      BRICK_MIN,
+      `brick lower bound stays at brickMin at ${elapsed}`,
+    );
+  }
+  // Upper cap climbs from the starting cap to brickMax over time.
+  const late = brickValueRange(HUGE, config);
+  assert.ok(
+    late.max > early.max,
+    `brick upper cap must grow (early ${early.max} -> late ${late.max})`,
+  );
+  assert.equal(late.max, BRICK_MAX, 'brick upper cap reaches brickMax at the difficulty cap');
+});
+
+test('bombValueRange: bounds within [bombMin,bombMax] and non-decreasing in elapsed (scales upward)', () => {
   let prev = bombValueRange(0, config);
-  assert.ok(prev.min >= BRICK_MIN && prev.max <= BRICK_MAX, 'range within [1,30]');
+  assert.ok(prev.min >= BOMB_MIN && prev.max <= BOMB_MAX, 'range within [1,60]');
   assert.ok(prev.min <= prev.max, 'min <= max');
   for (let elapsed = 0; elapsed <= HUGE; elapsed += config.difficulty.levelInterval) {
     const r = bombValueRange(elapsed, config);
-    assert.ok(r.min >= BRICK_MIN && r.max <= BRICK_MAX, `range within [1,30] at ${elapsed}`);
+    assert.ok(r.min >= BOMB_MIN && r.max <= BOMB_MAX, `range within [1,60] at ${elapsed}`);
     assert.ok(r.min <= r.max, `min <= max at ${elapsed}`);
     assert.ok(r.min >= prev.min, `bomb min non-decreasing at ${elapsed}`);
     assert.ok(r.max >= prev.max, `bomb max non-decreasing at ${elapsed}`);

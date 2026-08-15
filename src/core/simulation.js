@@ -86,7 +86,11 @@ export class GameModel {
     this.time = 0;
     this.difficultyLevel = 0;
     this.cooldownRemaining = 0;
-    this.spawnAccumulator = 0;
+    // FR-6: distance-triggered spawning. Accumulates the game-units the stack has
+    // RISEN since the last spawn; a new row is spawned each time it reaches
+    // `spawn.riseTrigger` (default one row height). Replaces the legacy
+    // time-based `spawnAccumulator`.
+    this.riseSinceSpawn = 0;
     this.status = 'playing';
     this.score = createScore();
     this.bomb = null;
@@ -94,7 +98,30 @@ export class GameModel {
     this.nextBrickId = 0;
     this.nextRowId = 0;
     this.bricks = [];
+    // FR-7: the model owns the two-deep upcoming-bomb queue [dropsNext,
+    // followingBomb]. Seed the initial layout FIRST (so brick rolls consume the
+    // rng before the queue, preserving generation order), then fill the queue
+    // with two freshly rolled bombs.
+    this.bombQueue = [];
     this._seedInitialRows();
+    this._fillBombQueue();
+  }
+
+  // FR-7: top up the upcoming-bomb queue to exactly two entries, rolling each
+  // missing value through the injected rng at the current elapsed time (INV-2:
+  // values are generated here, not at drop time). Called at reset and after each
+  // drop dequeues the front.
+  _fillBombQueue() {
+    while (this.bombQueue.length < 2) {
+      this.bombQueue.push(rollBombValue(this.time, this.rng, this.config));
+    }
+  }
+
+  // Distance-spawn trigger in game units (config.spawn.riseTrigger), defaulting
+  // to one row height when the tunable is absent (FR-6).
+  _riseTriggerOf() {
+    const t = this.config.spawn && this.config.spawn.riseTrigger;
+    return typeof t === 'number' && t > 0 ? t : this.rowHeight;
   }
 
   // Seed `initialRows` bottom-anchored rows: the bottom row's top edge sits at
@@ -143,7 +170,12 @@ export class GameModel {
     if (this.bomb !== null) return false;
 
     const col = clampInt(x / this.columnWidth, 0, this.columns - 1);
-    const value = rollBombValue(this.time, this.rng, this.config);
+    // FR-7: the bomb that flies is the FRONT of the queue (generated earlier and
+    // shown in the preview — what you see is what drops). Dequeue it, then roll a
+    // fresh bomb at the current elapsed time and push it to the tail so the queue
+    // stays two deep.
+    const value = this.bombQueue.shift();
+    this.bombQueue.push(rollBombValue(this.time, this.rng, this.config));
     this.bomb = {
       col,
       x: columnCenterX(col, this.config),
@@ -172,17 +204,7 @@ export class GameModel {
     // (2) decay the drop cooldown, floored at 0.
     this.cooldownRemaining = Math.max(0, this.cooldownRemaining - dt);
 
-    // (3) spawn timer: for each full interval of accumulated time, add a new
-    //     bottom row and carry the remainder.
-    this.spawnAccumulator += dt;
-    const interval = this.config.spawn.interval;
-    while (this.spawnAccumulator >= interval) {
-      this.spawnAccumulator -= interval;
-      const { row, y } = this._spawnRowAt(this.playHeight - this.rowHeight);
-      this.pendingEvents.push({ type: 'spawn', row, y });
-    }
-
-    // (4) rise: move every alive brick toward the top (decreasing y).
+    // (3) rise: move every alive brick toward the top (decreasing y).
     const riseSpeed =
       this.config.rise.speed +
       this.difficultyLevel * this.config.difficulty.riseSpeedGrowthPerLevel;
@@ -190,6 +212,22 @@ export class GameModel {
     if (dy !== 0) {
       for (const brick of this.bricks) {
         if (brick.alive) brick.y -= dy;
+      }
+    }
+
+    // (4) FR-6 distance-triggered spawn: accumulate how far the stack has risen
+    //     and add one new bottom row for each full `riseTrigger` risen since the
+    //     last spawn (carrying the remainder). Cadence accelerates with rise
+    //     speed and rows always stack exactly one trigger apart. A zero-rise
+    //     model never post-seed spawns. Runs AFTER the rise so a step's own rise
+    //     counts toward its trigger.
+    if (dy > 0) {
+      this.riseSinceSpawn += dy;
+      const trigger = this._riseTriggerOf();
+      while (this.riseSinceSpawn >= trigger) {
+        this.riseSinceSpawn -= trigger;
+        const { row, y } = this._spawnRowAt(this.playHeight - this.rowHeight);
+        this.pendingEvents.push({ type: 'spawn', row, y });
       }
     }
 
@@ -300,7 +338,7 @@ export class GameModel {
    * model — every nested object is a frozen copy.
    * @returns {Readonly<{ time:number, status:string, score:number,
    *   difficultyLevel:number, bricks:object[], bomb:(object|null),
-   *   danger:{ topEdgeY:(number|null) } }>}
+   *   bombQueue:number[], danger:{ topEdgeY:(number|null) } }>}
    */
   getState() {
     const bricks = this.bricks.map((b) =>
@@ -330,6 +368,9 @@ export class GameModel {
       difficultyLevel: this.difficultyLevel,
       bricks: Object.freeze(bricks),
       bomb,
+      // FR-7: the two upcoming bomb values [dropsNext, followingBomb] for the
+      // top-bar preview. A frozen copy of primitives — non-aliasing (INV-3).
+      bombQueue: Object.freeze([...this.bombQueue]),
       danger: Object.freeze({ topEdgeY: topEdgeY(this.bricks) }),
     });
   }

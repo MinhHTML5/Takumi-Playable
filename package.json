@@ -5,7 +5,8 @@
   "description": "BlockDrop 2 — neon bomb-vs-brick playable. Phaser-free deterministic core + headless test harness.",
   "type": "module",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "gen:assets": "node scripts/gen-explosion-spritesheet.js"
   },
   "license": "UNLICENSED"
 }
