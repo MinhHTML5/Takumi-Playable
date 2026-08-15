@@ -10,6 +10,12 @@
 // resolution below; the render layer scales them to device pixels via the
 // FIT scale mode. First-pass values — final tuning is deferred to Phases 02–03.
 
+// Reserved top-bar band height (game units), 120–140 per BlockDrop-2 FR-8. The
+// gameplay top edge and the danger line / game-over boundary both sit at this y,
+// so it is defined once here and referenced by `topBar.height` and
+// `gameOver.topY` below (pure data — no logic, no engine/DOM token).
+const TOP_BAR_HEIGHT = 130;
+
 export const config = {
   // --- Design resolution & scaling (PRD Q1 / TDD §4.1) ---
   // Portrait 9:16. `mode`/`autoCenter` are string tokens mapped to the
@@ -49,10 +55,14 @@ export const config = {
 
   // --- Game-over boundary ---
   // The stack loses when the topmost alive brick's top edge reaches this y
-  // (game units from the top). 0 = the very top of the playfield. Additive
-  // tunable consumed by the Phase 03 GameModel game-over check.
+  // (game units from the top). BlockDrop-2 FR-8 shrinks the playfield by the
+  // reserved top bar: the effective top edge for gameplay — and the danger line —
+  // is `y = topBar.height`, so game-over triggers when the stack reaches the
+  // bottom of the top bar rather than the very top of the canvas. Additive
+  // tunable consumed by the GameModel game-over check (INV preserved: still a
+  // pure y-threshold, just relocated).
   gameOver: {
-    topY: 0,
+    topY: TOP_BAR_HEIGHT,
     // --- Game-over screen presentation (Phase 06 render-layer, additive) ---
     // Pure tunables consumed by the engine-free `src/render/gameOverLayout.js`
     // helper and the render-layer game-over scene. No logic and no forbidden
@@ -81,10 +91,16 @@ export const config = {
     },
   },
 
-  // --- Brick-row spawning ---
-  // Seconds between the introduction of new brick rows at the bottom.
+  // --- Brick-row spawning (BlockDrop-2 FR-6: distance-triggered) ---
+  // A new bottom row is spawned once the most recently spawned row has RISEN one
+  // `riseTrigger` of game units from its spawn position (default = one row
+  // height, 120u), so rows always stack exactly one cell apart and the cadence
+  // accelerates naturally with rise speed. `interval` is the LEGACY fixed-cadence
+  // value (seconds) — retained so existing config consumers/tests keep resolving
+  // it, but no longer read by the simulation once FR-6 landed.
   spawn: {
     interval: 2.5,
+    riseTrigger: 120,
   },
 
   // --- Fixed-timestep frame binding (render layer, CF-04) ---
@@ -105,29 +121,44 @@ export const config = {
   bomb: {
     fallSpeed: 900,
     cooldown: 0.5,
-    // Bomb-value scaling params: the bomb's numeric value is drawn around a
-    // base that drifts upward with difficulty. Clamped to [values.brickMin,
-    // values.brickMax] by the (later) difficulty logic.
+    // Bomb-value scaling params (BlockDrop-2 FR-5): the bomb's numeric value is
+    // drawn around a `base` that drifts upward with difficulty by
+    // `growthPerLevel`, with a fixed `variance` spread. Clamped to
+    // [values.bombMin, values.bombMax] by the difficulty logic — DECOUPLED from
+    // the brick cap so late-game bombs can reach 60 and decisively cascade.
     value: {
-      base: 5,
-      variance: 3,
-      growthPerLevel: 2,
+      base: 6,
+      variance: 6,
+      growthPerLevel: 4,
     },
   },
 
-  // --- Brick value range (INV-7: always within [1,30]) ---
+  // --- Value ranges ---
+  // Bricks stay bounded to [brickMin, brickMax] = [1,30] (INV-7 tint domain).
+  // BlockDrop-2 FR-4 reshapes the brick curve so early rows draw from
+  // [brickMin, brickStartMax] and the UPPER cap grows over time toward brickMax
+  // while the lower bound stays at brickMin for the whole session.
+  // BlockDrop-2 FR-5 gives bombs their OWN cap, [bombMin, bombMax] = [1,60],
+  // independent of the brick cap.
   values: {
     brickMin: 1,
     brickMax: 30,
+    brickStartMax: 8,
+    bombMin: 1,
+    bombMax: 60,
   },
 
   // --- Difficulty curve (upward drift over elapsed time) ---
   // `levelInterval`: seconds of play per difficulty level increment.
-  // `valueDriftPerLevel`: how much the mean brick value shifts upward per
-  // level. `maxLevel` caps the curve so values stay bounded to brickMax.
+  // `brickMaxGrowthPerLevel`: how much the brick UPPER cap grows per level
+  // (FR-4), from `values.brickStartMax` toward `values.brickMax`.
+  // `valueDriftPerLevel`: LEGACY (pre-FR-4 lower-bound drift) — retained for
+  // back-compat config consumers/tests; no longer read by the brick curve.
+  // `maxLevel` caps the curve so values stay bounded.
   difficulty: {
     levelInterval: 8,
     valueDriftPerLevel: 1.5,
+    brickMaxGrowthPerLevel: 2,
     riseSpeedGrowthPerLevel: 2,
     maxLevel: 12,
   },
@@ -163,22 +194,104 @@ export const config = {
     },
     // Brick spawn fade-in duration (ms) for newly spawned rows.
     spawnFadeMs: 260,
-    // Screen shake on exact-match row clears (camera shake duration/intensity).
+    // Two-tier screen shake (BlockDrop-2 FR-2).
+    //   `shake` — the HEAVIER exact-match row-clear shake (unchanged: ~220ms,
+    //     intensity 0.012), the INV-8 row-clear trigger.
+    //   `hitShake` — a LIGHTER, shorter shake fired on EVERY bomb-hits-brick
+    //     collision (greater/lesser). Distinctly weaker so the two read apart.
     shake: {
       durationMs: 220,
       intensity: 0.012,
     },
+    hitShake: {
+      durationMs: 90,
+      intensity: 0.005,
+    },
     // Explosion particle burst per collision outcome (counts clamped to the
     // particle budget by `explosionParticleCount`) plus emitter tuning.
+    // BlockDrop-2 FR-3 beefs up the burst counts (still well under the
+    // particles.maxConcurrent budget, R5).
     explosion: {
-      countGreater: 14,
-      countLesser: 10,
-      countExact: 28,
+      countGreater: 20,
+      countLesser: 16,
+      countExact: 40,
       lifespanMs: 420,
       speedMin: 120,
       speedMax: 380,
       scaleStart: 0.9,
       scaleEnd: 0,
+    },
+    // Expanding shockwave ring per collision (BlockDrop-2 FR-3). A single ring
+    // sprite scales from `startScale`→`endScale` while its alpha fades
+    // `startAlpha`→0 over `lifespanMs`, coloured to match the outcome. The pure
+    // scale/alpha curves live in `src/render/effects.js` (shockwave helpers).
+    shockwave: {
+      lifespanMs: 420,
+      startScale: 0.25,
+      endScale: 2.6,
+      startAlpha: 0.8,
+    },
+    // Sprite-sheet explosion animation (BlockDrop-2 FR-3). The frames are baked
+    // build-time by `scripts/gen-explosion-spritesheet.js` into
+    // `assets/explosion.png` (see `assets.explosionSheet`); the render layer
+    // plays this animation once per collision, tinted per outcome.
+    explosionAnim: {
+      key: 'explosion',
+      frameRate: 24,
+      scale: 1.1,
+    },
+  },
+
+  // --- Sprite-sheet assets (build-time generated, committed to the repo) ---
+  // BlockDrop-2 FR-3: the monochrome explosion sheet is produced by the Node
+  // script `scripts/gen-explosion-spritesheet.js` and loaded by the render layer
+  // via a sprite-sheet load call `{ frameWidth, frameHeight }`. Frames are laid
+  // out horizontally: sheet width = frameWidth * frameCount.
+  assets: {
+    explosionSheet: {
+      key: 'explosion',
+      path: 'assets/explosion.png',
+      frameWidth: 64,
+      frameHeight: 64,
+      frameCount: 10,
+    },
+  },
+
+  // --- Numeric value labels on bricks / bomb (BlockDrop-2 FR-1) ---
+  // Bold monospace with a dark stroke for contrast against any tint. Consumed by
+  // the render layer, which centres a text object on each alive brick and on the
+  // active bomb and updates it whenever the value changes.
+  labels: {
+    fontFamily: 'monospace',
+    fontStyle: 'bold',
+    color: '#ffffff',
+    stroke: '#05010a',
+    strokeThickness: 5,
+    brickSizePx: 40,
+    bombSizePx: 44,
+  },
+
+  // --- Top bar (BlockDrop-2 FR-8) ---
+  // Reserved band across the top of the playfield (`height` game units). The
+  // gameplay top edge and danger line sit at `height` (= gameOver.topY). Layout:
+  // the score readout is left-aligned at `scoreX`; the two bomb previews
+  // (FR-7, queue order — leftmost drops next) are right-aligned as `slotSize`
+  // squares separated by `slotGap`, `rightPad` from the right edge.
+  topBar: {
+    height: TOP_BAR_HEIGHT,
+    background: 0x0a0f30,
+    backgroundAlpha: 0.92,
+    borderColor: 0x39ff14,
+    borderAlpha: 0.5,
+    scoreX: 24,
+    scoreSizePx: 44,
+    scoreColor: '#ffffff',
+    preview: {
+      slotSize: 84,
+      slotGap: 18,
+      rightPad: 28,
+      iconScale: 0.82,
+      labelSizePx: 34,
     },
   },
 

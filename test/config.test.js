@@ -70,6 +70,39 @@ test('config exposes brick value range [1,30] (INV-7)', () => {
     'brickMin must be less than brickMax');
 });
 
+test('FR-4/FR-5: brick starting cap and decoupled bomb range are configured', () => {
+  // FR-4: bricks open at a small starting cap that grows toward brickMax.
+  assert.ok(
+    config.values.brickStartMax >= config.values.brickMin &&
+      config.values.brickStartMax < config.values.brickMax,
+    'brickStartMax must sit between brickMin and brickMax',
+  );
+  assert.ok(config.difficulty.brickMaxGrowthPerLevel > 0,
+    'brickMaxGrowthPerLevel must grow the brick cap over time');
+  // FR-5: the bomb range is a separate knob that can exceed the brick cap (60).
+  assert.equal(config.values.bombMax, 60, 'values.bombMax must be 60');
+  assert.ok(config.values.bombMax > config.values.brickMax,
+    'bomb cap must exceed the brick cap (decoupled, FR-5)');
+});
+
+test('FR-2: a lighter hit shake is configured distinct from the row-clear shake', () => {
+  assert.ok(config.effects.hitShake.intensity < config.effects.shake.intensity,
+    'hit-shake intensity must be weaker than the row-clear shake');
+  assert.ok(config.effects.hitShake.durationMs < config.effects.shake.durationMs,
+    'hit-shake must be shorter than the row-clear shake');
+});
+
+test('FR-8: the top bar height (120–140) is the game-over / danger boundary', () => {
+  assert.ok(config.topBar.height >= 120 && config.topBar.height <= 140,
+    'topBar.height must be within 120–140');
+  assert.equal(config.gameOver.topY, config.topBar.height,
+    'the game-over / danger boundary sits at y = topBar.height');
+});
+
+test('FR-6: a distance spawn trigger is configured', () => {
+  assert.ok(config.spawn.riseTrigger > 0, 'spawn.riseTrigger must be positive');
+});
+
 test('config exposes difficulty-curve params', () => {
   assert.equal(typeof config.difficulty, 'object', 'difficulty params must exist');
   assert.ok(config.difficulty.levelInterval > 0, 'difficulty.levelInterval must be > 0');

@@ -18,9 +18,18 @@
 // Pure: each reads only its arguments, owns no state, and never touches
 // Phaser/DOM.
 
+import { valueToTint } from './tint.js';
+
 // Linear interpolation between `a` (at t=0) and `b` (at t=1).
 function lerp(a, b, t) {
   return a + t * (b - a);
+}
+
+// Clamp `t` to [0, 1] (progress guards for the shockwave curves).
+function clamp01(t) {
+  if (t < 0) return 0;
+  if (t > 1) return 1;
+  return t;
 }
 
 /**
@@ -85,4 +94,92 @@ export function explosionParticleCount(outcome, config) {
   return Math.trunc(clamped);
 }
 
-export default { dangerPulse, explosionParticleCount };
+/**
+ * Two-tier screen-shake parameters for a shake kind (BlockDrop-2 FR-2).
+ *
+ * `'rowClear'` → the heavier exact-match shake (`config.effects.shake`);
+ * `'hit'` → the lighter, shorter shake fired on every bomb-hits-brick collision
+ * (`config.effects.hitShake`). Any other kind yields a zeroed, no-op shake.
+ * Returned as `{ durationMs, intensity }` — the exact args the render layer
+ * passes to the camera shake.
+ *
+ * Pure: reads only its arguments, owns no state, and never touches Phaser/DOM.
+ *
+ * @param {string} kind - `'rowClear'` or `'hit'`.
+ * @param {object} config - the tunables module (needs `effects.shake` /
+ *   `effects.hitShake`).
+ * @returns {{ durationMs: number, intensity: number }}
+ */
+export function screenShake(kind, config) {
+  const e = config.effects;
+  let s;
+  switch (kind) {
+    case 'rowClear':
+      s = e.shake;
+      break;
+    case 'hit':
+      s = e.hitShake;
+      break;
+    default:
+      return { durationMs: 0, intensity: 0 };
+  }
+  return { durationMs: s.durationMs, intensity: s.intensity };
+}
+
+/**
+ * Expanding-shockwave-ring scale at a normalized lifetime `progress` ∈ [0,1]
+ * (BlockDrop-2 FR-3). Lerps `config.effects.shockwave.startScale` →
+ * `endScale`. `progress` is clamped to [0,1] so out-of-range inputs sit at an
+ * endpoint. Monotonically non-decreasing in `progress` (the ring only grows).
+ *
+ * @param {number} progress - elapsed / lifespan, in [0,1].
+ * @param {object} config - the tunables module (needs `effects.shockwave`).
+ * @returns {number} the ring scale at `progress`.
+ */
+export function shockwaveScale(progress, config) {
+  const s = config.effects.shockwave;
+  return lerp(s.startScale, s.endScale, clamp01(progress));
+}
+
+/**
+ * Expanding-shockwave-ring alpha at a normalized lifetime `progress` ∈ [0,1]
+ * (BlockDrop-2 FR-3). Fades `config.effects.shockwave.startAlpha` → 0 over the
+ * lifetime, so the ring vanishes exactly as it finishes expanding. `progress`
+ * is clamped to [0,1]. Monotonically non-increasing in `progress`.
+ *
+ * @param {number} progress - elapsed / lifespan, in [0,1].
+ * @param {object} config - the tunables module (needs `effects.shockwave`).
+ * @returns {number} the ring alpha at `progress`.
+ */
+export function shockwaveAlpha(progress, config) {
+  const s = config.effects.shockwave;
+  return lerp(s.startAlpha, 0, clamp01(progress));
+}
+
+/**
+ * The tint colour for a collision effect (BlockDrop-2 FR-3). An `'exact'`
+ * row-clear flashes the high (red) endpoint (`config.tint.high`); a partial
+ * `'greater'`/`'lesser'` hit is coloured by the value gained via the monotonic
+ * value→tint mapping (INV-7). Centralizes the tint decision shared by the
+ * explosion sprite, particle burst, and shockwave ring so they always agree.
+ *
+ * Pure: reads only its arguments, owns no state, and never touches Phaser/DOM.
+ *
+ * @param {string} outcome - the collision outcome (`greater`/`lesser`/`exact`).
+ * @param {number} value - the value gained by the hit (ignored for `exact`).
+ * @param {object} config - the tunables module (needs `tint` and `values`).
+ * @returns {number} an integer 0xRRGGBB colour.
+ */
+export function outcomeTint(outcome, value, config) {
+  if (outcome === 'exact') return config.tint.high;
+  return valueToTint(value, config);
+}
+
+export default {
+  dangerPulse,
+  explosionParticleCount,
+  screenShake,
+  shockwaveScale,
+  shockwaveAlpha,
+  outcomeTint,
+};

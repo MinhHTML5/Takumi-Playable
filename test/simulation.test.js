@@ -157,30 +157,49 @@ test('rise: riseSpeed grows with difficulty level', () => {
   assert.equal(s.bricks[0].y, y0 - 12 * 5, 'dy = (10 + 1*2) * 5 = 60');
 });
 
-test('spawn: a new bottom row appears after one full interval, remainder carried', () => {
-  const config = makeConfig({ spawnInterval: 1 });
+test('FR-6 spawn: a new bottom row appears once the stack rises one row height, remainder carried', () => {
+  // Distance-triggered (FR-6): riseTrigger defaults to rowHeight (120). At
+  // riseSpeed 60, two dt=1 ticks rise exactly one row height -> one spawn.
+  const config = makeConfig({ riseSpeed: 60, rowHeight: 120 });
   const model = new GameModel({ config, rng: scriptedRng([4]) });
-  model.tick(0.5); // accumulator 0.5 < 1 -> no spawn
-  assert.equal(model.getState().bricks.length, 1, 'no spawn before the interval');
+  model.tick(1); // risen 60 < 120 -> no spawn
+  assert.equal(model.getState().bricks.length, 1, 'no spawn before one row height risen');
   model.consumeEvents();
 
-  model.tick(0.6); // accumulator 1.1 -> exactly one spawn, remainder 0.1
+  model.tick(1); // risen 120 -> exactly one spawn, remainder 0
   const s = model.getState();
-  assert.equal(s.bricks.length, 2, 'exactly one new row spawned (single crossing)');
+  assert.equal(s.bricks.length, 2, 'exactly one new row spawned at one row height risen');
   const spawnEvents = model.consumeEvents().filter((e) => e.type === 'spawn');
   assert.equal(spawnEvents.length, 1, 'one spawn event emitted');
+  assert.equal(
+    spawnEvents[0].y,
+    config.design.height - config.grid.rowHeight,
+    'the new row spawns at the bottom',
+  );
 
-  model.tick(0.85); // accumulator 0.1 + 0.85 = 0.95 < 1 -> still no second spawn
+  model.tick(0.5); // risen +30 = 30 < 120 -> no second spawn
   assert.equal(model.getState().bricks.length, 2, 'remainder carried; no doubled spawn');
 });
 
-test('spawn: a dt spanning multiple intervals spawns one row per interval', () => {
-  const config = makeConfig({ spawnInterval: 1 });
+test('FR-6 spawn: a single big rise spanning several triggers spawns one row per row height', () => {
+  const config = makeConfig({ riseSpeed: 300, rowHeight: 120, height: 100000 });
   const model = new GameModel({ config, rng: scriptedRng([4]) });
-  model.tick(2.5); // 2 full intervals -> 2 spawns, remainder 0.5
+  model.tick(1); // risen 300 -> floor(300/120) = 2 spawns, remainder 60
   assert.equal(model.getState().bricks.length, 3, '1 seeded + 2 spawned');
   const spawns = model.consumeEvents().filter((e) => e.type === 'spawn');
   assert.equal(spawns.length, 2, 'two spawn events');
+});
+
+test('FR-6 spawn: a zero-rise model never post-seed spawns (only seeded rows exist)', () => {
+  const config = makeConfig({ riseSpeed: 0 });
+  const model = new GameModel({ config, rng: scriptedRng([4]) });
+  for (let i = 0; i < 20; i += 1) model.tick(1);
+  assert.equal(model.getState().bricks.length, 1, 'no distance spawns without any rise');
+  assert.equal(
+    model.consumeEvents().filter((e) => e.type === 'spawn').length,
+    0,
+    'no spawn events emitted without rise',
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -239,6 +258,71 @@ test('INV-8: a bomb that exits the bottom with no interaction is a miss (no scor
   assert.equal(afterFirst.bomb, null, 'first bomb gone (destroyed brick then missed out)');
   assert.equal(afterFirst.score, 8, 'scored the one destroyed brick');
   assert.equal(afterFirst.bricks.find((b) => b.col === 0).alive, false, 'column 0 brick dead');
+});
+
+// ---------------------------------------------------------------------------
+// FR-7 — two-deep bomb queue with generation-time values
+// ---------------------------------------------------------------------------
+
+test('FR-7: model seeds a two-deep bomb queue at construction', () => {
+  const config = makeConfig({ columns: 1, initialRows: 1 });
+  // Seed brick consumes 4; the queue then fills with the next two rolls 11, 12.
+  const model = new GameModel({ config, rng: scriptedRng([4, 11, 12]) });
+  const s = model.getState();
+  assert.ok(Array.isArray(s.bombQueue), 'bombQueue is an array');
+  assert.equal(s.bombQueue.length, 2, 'exactly two upcoming bombs');
+  assert.deepEqual(s.bombQueue, [11, 12], 'queue = [dropsNext, followingBomb]');
+});
+
+test('FR-7: dropBomb flies the FRONT of the queue and refills the tail (generation-time value)', () => {
+  const config = makeConfig({ columns: 1, initialRows: 1 });
+  const model = new GameModel({ config, rng: scriptedRng([4, 11, 12, 13]) });
+  assert.deepEqual(model.getState().bombQueue, [11, 12], 'precondition: queue [11,12]');
+
+  assert.equal(model.dropBomb(0), true, 'drop succeeds');
+  const s = model.getState();
+  assert.equal(
+    s.bomb.value,
+    11,
+    'the bomb that flies is the previewed front (11), not a value freshly rolled at drop time',
+  );
+  assert.deepEqual(
+    s.bombQueue,
+    [12, 13],
+    'front dequeued, followingBomb shifts up, a new bomb (13) is pushed to the tail',
+  );
+});
+
+test('FR-7: the queue stays exactly two deep across repeated drops', () => {
+  const config = makeConfig({
+    columns: 1,
+    initialRows: 1,
+    cooldown: 0,
+    gameOverTopY: -100000,
+  });
+  const model = new GameModel({ config, rng: scriptedRng([4, 9]) });
+  for (let i = 0; i < 6; i += 1) {
+    // Tick any active bomb out of the field so the next drop is accepted (INV-5).
+    let guard = 0;
+    while (model.getState().bomb !== null && guard < 200) {
+      model.tick(1);
+      guard += 1;
+    }
+    assert.equal(model.dropBomb(0), true, `drop ${i} accepted`);
+    assert.equal(model.getState().bombQueue.length, 2, `queue stays two deep after drop ${i}`);
+  }
+});
+
+test('FR-7: queue values are within the bomb range and the snapshot copy is non-aliasing', () => {
+  const model = new GameModel({ config: realConfig, rng: createRng(31337) });
+  const s = model.getState();
+  assert.ok(Object.isFrozen(s.bombQueue), 'bombQueue snapshot is frozen (INV-3)');
+  for (const v of s.bombQueue) {
+    assert.ok(
+      Number.isInteger(v) && v >= realConfig.values.bombMin && v <= realConfig.values.bombMax,
+      `queued bomb value ${v} within [${realConfig.values.bombMin},${realConfig.values.bombMax}]`,
+    );
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -326,10 +410,11 @@ test('contract: getState() returns the documented shape', () => {
   const config = makeConfig({ columns: 2, initialRows: 1 });
   const model = new GameModel({ config, rng: scriptedRng([7, 7]) });
   const s = model.getState();
-  for (const key of ['time', 'status', 'score', 'difficultyLevel', 'bricks', 'bomb', 'danger']) {
+  for (const key of ['time', 'status', 'score', 'difficultyLevel', 'bricks', 'bomb', 'bombQueue', 'danger']) {
     assert.ok(key in s, `snapshot has "${key}"`);
   }
   assert.ok(Array.isArray(s.bricks), 'bricks is an array');
+  assert.ok(Array.isArray(s.bombQueue) && s.bombQueue.length === 2, 'bombQueue is a two-deep array');
   assert.equal(s.bomb, null, 'bomb null when none active');
   assert.ok('topEdgeY' in s.danger, 'danger carries topEdgeY');
   const b = s.bricks[0];
@@ -359,9 +444,9 @@ test('contract: dropBomb returns a boolean', () => {
 });
 
 test('contract: consumeEvents() drains and returns [] on a second call', () => {
-  const config = makeConfig({ spawnInterval: 1 });
+  const config = makeConfig({ riseSpeed: 120, rowHeight: 120 });
   const model = new GameModel({ config, rng: scriptedRng([4]) });
-  model.tick(1.0); // emits a spawn event
+  model.tick(1.0); // risen one row height -> emits a spawn event
   const first = model.consumeEvents();
   assert.ok(Array.isArray(first), 'returns an array');
   assert.ok(first.length >= 1, 'drains the accumulated events');

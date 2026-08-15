@@ -42,11 +42,13 @@ export function difficultyLevel(elapsedSeconds, config) {
 }
 
 /**
- * Brick-value distribution bounds at the given elapsed time.
- * The lower bound drifts upward with difficulty (`valueDriftPerLevel` per
- * level) while the upper bound stays at `config.values.brickMax`, so the mean
- * rises over time. Both bounds are integers within [brickMin, brickMax] and
- * non-decreasing in elapsed.
+ * Brick-value distribution bounds at the given elapsed time (BlockDrop-2 FR-4).
+ * The LOWER bound stays fixed at `config.values.brickMin` for the whole session
+ * while the UPPER bound grows with difficulty from `config.values.brickStartMax`
+ * toward `config.values.brickMax` (`brickMaxGrowthPerLevel` per level), so early
+ * rows draw from a small starting range that ramps up. Both bounds are integers
+ * within [brickMin, brickMax] and non-decreasing in elapsed. Falls back to
+ * `brickMax` as the starting cap when `brickStartMax` is absent (legacy config).
  *
  * @param {number} elapsedSeconds
  * @param {object} config
@@ -54,20 +56,30 @@ export function difficultyLevel(elapsedSeconds, config) {
  */
 export function brickValueRange(elapsedSeconds, config) {
   const { brickMin, brickMax } = config.values;
+  const startMax =
+    typeof config.values.brickStartMax === 'number'
+      ? config.values.brickStartMax
+      : brickMax;
+  const growthPerLevel =
+    typeof config.difficulty.brickMaxGrowthPerLevel === 'number'
+      ? config.difficulty.brickMaxGrowthPerLevel
+      : 0;
   const level = difficultyLevel(elapsedSeconds, config);
-  const drift = Math.floor(config.difficulty.valueDriftPerLevel * level);
+  const grow = Math.floor(growthPerLevel * level);
 
-  const max = clampInt(brickMax, brickMin, brickMax);
-  let min = clampInt(brickMin + drift, brickMin, brickMax);
-  if (min > max) min = max; // safety: keep min <= max under any config
+  const min = clampInt(brickMin, brickMin, brickMax);
+  let max = clampInt(startMax + grow, brickMin, brickMax);
+  if (max < min) max = min; // safety: keep min <= max under any config
   return { min, max };
 }
 
 /**
- * Bomb-value distribution bounds at the given elapsed time.
+ * Bomb-value distribution bounds at the given elapsed time (BlockDrop-2 FR-5).
  * The center drifts upward (`config.bomb.value.base` + `growthPerLevel` per
- * level) with a fixed `variance` spread; both bounds are clamped to
- * [brickMin, brickMax] and are non-decreasing in elapsed.
+ * level) with a fixed `variance` spread; both bounds are clamped to the bomb's
+ * OWN range [bombMin, bombMax] (DECOUPLED from the brick cap so late-game bombs
+ * can reach 60), and are non-decreasing in elapsed. Falls back to
+ * [brickMin, brickMax] when the bomb range keys are absent (legacy config).
  *
  * @param {number} elapsedSeconds
  * @param {object} config
@@ -75,12 +87,16 @@ export function brickValueRange(elapsedSeconds, config) {
  */
 export function bombValueRange(elapsedSeconds, config) {
   const { brickMin, brickMax } = config.values;
+  const bombMin =
+    typeof config.values.bombMin === 'number' ? config.values.bombMin : brickMin;
+  const bombMax =
+    typeof config.values.bombMax === 'number' ? config.values.bombMax : brickMax;
   const { base, variance, growthPerLevel } = config.bomb.value;
   const level = difficultyLevel(elapsedSeconds, config);
   const center = base + growthPerLevel * level;
 
-  let min = clampInt(center - variance, brickMin, brickMax);
-  const max = clampInt(center + variance, brickMin, brickMax);
+  let min = clampInt(center - variance, bombMin, bombMax);
+  const max = clampInt(center + variance, bombMin, bombMax);
   if (min > max) min = max; // safety: keep min <= max under any config
   return { min, max };
 }
@@ -102,8 +118,8 @@ export function rollBrickValue(elapsedSeconds, rng, config) {
 
 /**
  * Draw an integer bomb value at the given elapsed time through the injected
- * rng. Guaranteed to be an integer within `bombValueRange`, hence within
- * [config.values.brickMin, config.values.brickMax] (INV-7).
+ * rng. Guaranteed to be an integer within `bombValueRange`, hence within the
+ * bomb's own range [config.values.bombMin, config.values.bombMax] (FR-5).
  *
  * @param {number} elapsedSeconds
  * @param {{ nextInt: (min: number, max: number) => number }} rng
