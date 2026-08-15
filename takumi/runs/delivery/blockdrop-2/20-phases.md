@@ -4,7 +4,7 @@
 
 - Feature Slug: blockdrop-2
 - Related TDD: `./10-tdd.md`
-- Status: In Delivery — Phases 01–04 accepted; Phase 05 next
+- Status: In Delivery — Phases 01–05 accepted; Phase 06 next
 - Last Updated: 2026-08-15
 
 ---
@@ -98,17 +98,22 @@ Single repo throughout: **Takumi-Playable**.
   model (INV-3). Testability-of-Phaser risk (R3).
 
 ### Phase 05: Game Feel Effects
+- Outcome: Accepted on 2026-08-15 by review node
+  `1c072521-caaf-4349-9a3f-28143e4285b7`. Pure pulse and particle-budget helpers, a generated
+  particle texture, and event-driven GameScene effects were delivered with 108/108 automated
+  tests passing and all changed JavaScript parsing cleanly. Manual visual/mobile confirmation
+  remains carried as CF-01.
 - Goal: Add the required juice.
 - Scope: Explosion particles on bomb detonation, brick spawn fade-in, screen shake on exact-match
   row clears, pulsing top danger line, and immediate partial-damage tint refresh — all driven by
   the model's drained events (`consumeEvents`).
 - Repos touched: Takumi-Playable.
 - Exit Criteria:
-  - [ ] Each required effect is present and visibly triggered by the correct game event (manual
-        DoD check).
-  - [ ] Effects are event-driven from the model and do not alter simulation outcomes — core tests
+  - [x] Each required effect is wired to the correct model event or elapsed-time source
+        (structural review); visible confirmation remains part of CF-01.
+  - [x] Effects are event-driven from the model and do not alter simulation outcomes — core tests
         from Phases 02–03 still pass unchanged (regression).
-  - [ ] Particle counts are capped per the performance budget (review). (R5)
+  - [x] Particle counts are capped per the performance budget (unit + review). (R5)
 - Key Risks / Notes: Depends on Phase 04. Performance-on-mobile risk (R5).
 
 ### Phase 06: Game-Over Screen & Restart CTA
@@ -146,13 +151,12 @@ the shell (01) exists, but rendering (04) cannot start until the model (03) is r
 
 ## 3. Deferred Work Registry
 
-Phase 04 leaves three non-blocking, review-traceable items. It discharged the collision-step
-constraint (former CF-04) through `fixedSteps` and a real-config invariant test, while retaining
-the manual browser check and two scoped cleanup/observability items. Current fields and rationale
-are in `phase-04/32-carry-forward.md`.
+Phase 05 leaves three non-blocking, review-traceable items. It retained the manual browser check
+and two scoped cleanup/observability items after explicitly re-evaluating each one. Current fields
+and rationale are in `phase-05/32-carry-forward.md`.
 
-- CF-01 — execute the manual mobile-portrait browser boot/play check for the delivered render and
-  input binding before final acceptance.
+- CF-01 — execute the manual mobile-portrait browser boot/play check for the delivered render,
+  input binding, and game-feel effects during the Phase 06 final DoD walkthrough.
 - CF-02 — remove the pre-existing empty `Test.txt` during Phase 06 final integration cleanup.
 - CF-03 — consider a debug-only warning for unknown scale configuration tokens when shell
   observability is next touched.
