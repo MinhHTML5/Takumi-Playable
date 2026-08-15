@@ -14,6 +14,7 @@
 import config from './core/config.js';
 import BootScene from './scenes/BootScene.js';
 import GameScene from './scenes/GameScene.js';
+import GameOverScene from './scenes/GameOverScene.js';
 
 // Map config's string scale tokens onto Phaser's Scale enum. Falling back to
 // FIT / CENTER_BOTH keeps the shell booting even if a token is unrecognised.
@@ -29,6 +30,21 @@ const AUTO_CENTER = {
   NO_CENTER: Phaser.Scale.NO_CENTER,
 };
 
+// Resolve a config scale token against its Phaser-enum map, falling back to the
+// given default. CF-03: when the token is absent from the map, emit a
+// `config.debug`-gated `console.warn` naming the unrecognised token — pure
+// observability, silent by default. The `??` fallback below is preserved so the
+// shell still boots on FIT / CENTER_BOTH regardless of the warning.
+function resolveScaleToken(map, token, fallback, label) {
+  const resolved = map[token];
+  if (resolved === undefined && config.debug) {
+    console.warn(
+      `[main] Unrecognised config.scale.${label} token "${token}"; falling back to default.`,
+    );
+  }
+  return resolved ?? fallback;
+}
+
 const gameConfig = {
   type: Phaser.AUTO,
   parent: 'game',
@@ -36,10 +52,20 @@ const gameConfig = {
   height: config.design.height,
   backgroundColor: '#000000',
   scale: {
-    mode: SCALE_MODE[config.scale.mode] ?? Phaser.Scale.FIT,
-    autoCenter: AUTO_CENTER[config.scale.autoCenter] ?? Phaser.Scale.CENTER_BOTH,
+    mode: resolveScaleToken(
+      SCALE_MODE,
+      config.scale.mode,
+      Phaser.Scale.FIT,
+      'mode',
+    ),
+    autoCenter: resolveScaleToken(
+      AUTO_CENTER,
+      config.scale.autoCenter,
+      Phaser.Scale.CENTER_BOTH,
+      'autoCenter',
+    ),
   },
-  scene: [BootScene, GameScene],
+  scene: [BootScene, GameScene, GameOverScene],
 };
 
 // Start the game.
