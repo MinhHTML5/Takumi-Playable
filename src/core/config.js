@@ -61,6 +61,17 @@ export const config = {
     interval: 2.5,
   },
 
+  // --- Fixed-timestep frame binding (render layer, CF-04) ---
+  // Maximum simulated seconds advanced per `model.tick`. The render layer's
+  // variable per-frame delta is split into sub-steps each ≤ this bound (see
+  // src/render/loop.js) so a spiky frame cannot advance the bomb more than one
+  // row in a single tick. Chosen so bomb.fallSpeed(900) * 0.05 = 45 <
+  // grid.rowHeight(120), preserving the accepted point-overlap collision
+  // constraint under variable frame deltas.
+  loop: {
+    maxStepSeconds: 0.05,
+  },
+
   // --- Bomb behaviour ---
   // `fallSpeed`: descent rate of a dropped bomb (game units per second).
   // `cooldown`: minimum seconds between drops — enforces "one bomb per
