@@ -119,6 +119,43 @@ export const config = {
     maxConcurrent: 120,
   },
 
+  // --- Game-feel effects (Phase 05 render-layer juice, additive) ---
+  // Pure tunables read by the engine-free `src/render/effects.js` helpers and
+  // the render-layer juice wiring. No logic and no forbidden token lives here,
+  // so the INV-1 core-purity scan stays green. The particle cap is NOT
+  // duplicated: `explosionParticleCount` clamps to `particles.maxConcurrent`
+  // above (R5).
+  effects: {
+    // Top danger-line sine pulse. `dangerPulse(t)` computes u∈[0,1] from
+    // frequencyHz and lerps alpha/scaleY between these endpoints.
+    dangerPulse: {
+      frequencyHz: 1.2,
+      minAlpha: 0.55,
+      maxAlpha: 1.0,
+      minScaleY: 0.85,
+      maxScaleY: 1.25,
+    },
+    // Brick spawn fade-in duration (ms) for newly spawned rows.
+    spawnFadeMs: 260,
+    // Screen shake on exact-match row clears (camera shake duration/intensity).
+    shake: {
+      durationMs: 220,
+      intensity: 0.012,
+    },
+    // Explosion particle burst per collision outcome (counts clamped to the
+    // particle budget by `explosionParticleCount`) plus emitter tuning.
+    explosion: {
+      countGreater: 14,
+      countLesser: 10,
+      countExact: 28,
+      lifespanMs: 420,
+      speedMin: 120,
+      speedMax: 380,
+      scaleStart: 0.9,
+      scaleEnd: 0,
+    },
+  },
+
   // --- Diagnostics ---
   // Gates lightweight console diagnostics in the core/render layers (TDD §
   // "Logs"). Off by default.
