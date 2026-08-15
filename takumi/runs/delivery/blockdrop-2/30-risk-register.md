@@ -4,8 +4,8 @@
 
 - Feature Slug: blockdrop-2
 - Related TDD: `./10-tdd.md`
-- Status: Active — reconciled after Phase 03
-- Last Updated: 2026-08-14
+- Status: Active — reconciled after Phase 04
+- Last Updated: 2026-08-15
 
 ---
 
@@ -53,7 +53,7 @@
   browser play is available.
 
 ### R3: Phaser scenes are hard to unit-test
-- Status: Open — mitigation established, residual manual validation remains
+- Status: Mitigated structurally in Phase 04; residual manual validation remains
 - Category: Correctness
 - Description: Rendering/input code bound to Phaser is not testable in a headless Node runner,
   risking untested logic leaking into scenes.
@@ -67,6 +67,11 @@
 - Phase Most Affected: Phase 04
 - Phase 01 Outcome: The shell keeps Phaser references outside `src/core/`, and the core-purity
   test passed. Browser rendering remains a manual validation boundary (CF-01).
+- Phase 04 Outcome: Review node `ef323933-2bed-4059-a7d1-ef4c953d7ce5` accepted a thin scene
+  adapter with no game rules or model-state mutation. Tint and fixed-step logic were extracted
+  into pure modules with 14 focused tests; the 99/99 full suite and recursive core-purity check
+  passed. The Phaser-coupled texture/scene surface parsed cleanly, while runtime rendering remains
+  the explicit CF-01 manual boundary.
 
 ### R4: Non-deterministic core breaks reproducibility and tests
 - Status: Mitigated through the complete Phase 03 simulation core
@@ -90,7 +95,7 @@
   no wall-clock or direct-randomness path.
 
 ### R5: Mobile performance under particle/glow load
-- Status: Open — not exercised in Phase 01
+- Status: Open for Phase 05 effects; static texture reuse established in Phase 04
 - Category: Performance
 - Description: Neon glow and explosion particles can drop frame rate on mid-range mobile GPUs.
 - Likelihood: Medium
@@ -100,6 +105,10 @@
   and total brick count; scope collision checks to the bomb's column. Degrade particle counts if
   needed.
 - Phase Most Affected: Phase 05
+- Phase 04 Outcome: Procedural background, brick, bomb, and danger-line textures are generated
+  once and reused; brick sprites are reconciled by id and the bomb sprite is reused. Phase 04
+  review found no performance blocker. Particle/emitter load is not yet implemented or exercised,
+  so the risk remains open for Phase 05.
 
 ### R6: Collision cascade / row-clear edge cases
 - Status: Mitigated for the accepted Phase 03 configuration and contracts
@@ -120,9 +129,12 @@
   Review node `e75fa37f-ff0f-4965-b4cd-1d9e683e0f40` accepted all evidence. Residual constraint:
   collision overlap is point-based and assumes bomb travel per tick does not exceed row height;
   this is tracked as Phase 03 CF-04 for any future tuning that changes that relationship.
+- Phase 04 Outcome: CF-04 is discharged for variable browser frame cadence. `fixedSteps` caps each
+  model tick at 0.05 s, limiting bomb travel to 45 game units against a 120-unit row height; the
+  real-config relationship is pinned by the accepted loop tests.
 
 ### R7: Mobile-portrait scaling / input across viewports
-- Status: Partially mitigated — shell configuration delivered; browser confirmation pending
+- Status: Partially mitigated — render/input binding delivered; browser confirmation pending
 - Category: Correctness
 - Description: Varying device aspect ratios and touch vs mouse input can misplace elements or
   mis-map tap position to brick columns.
@@ -137,6 +149,10 @@
 - Phase 01 Outcome: The 720×1280 FIT/CENTER_BOTH configuration and portrait viewport metadata are
   implemented and structurally accepted. Actual browser/viewport behavior was not executable in
   the headless lane and is carried as CF-01.
+- Phase 04 Outcome: `GameScene` now forwards Phaser `pointer.worldX` to the model, which clamps and
+  maps the game-space coordinate to a valid column while enforcing cooldown. Review accepted the
+  structural binding and existing model tests; cross-viewport behavior still requires the CF-01
+  manual browser walkthrough.
 
 ---
 
