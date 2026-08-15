@@ -4,7 +4,7 @@
 
 - Feature Slug: blockdrop-2
 - Related TDD: `./10-tdd.md`
-- Status: Active — reconciled after Phase 05
+- Status: Reconciled after final Phase 06 acceptance; residual manual risks tracked as CF-01
 - Last Updated: 2026-08-15
 
 ---
@@ -32,7 +32,7 @@
   blocking acquisition risk.
 
 ### R2: Difficulty tuning misses the 30–45 s target
-- Status: Mitigated for the headless model; browser play feel remains to be confirmed
+- Status: Mitigated for the accepted headless model; browser play feel remains CF-01
 - Category: Correctness
 - Description: Rise speed, spawn interval, and the value-scaling curve must combine so a typical
   first-time player loses in ~30–45 s. Mis-tuned constants make sessions too short or too long.
@@ -51,9 +51,12 @@
   evidence that no-input sessions under seeds `1`, `20260814`, and `777`, stepped at 60 Hz, reach
   game-over within `[30,45]` seconds. Residual risk is subjective player feel, to be checked once
   browser play is available.
+- Phase 06 Outcome: The complete automated suite remains green at 119/119 and the final restart
+  integration drives a session to game over under a hard step bound. Subjective duration and feel
+  were not observable headlessly and remain part of CF-01.
 
 ### R3: Phaser scenes are hard to unit-test
-- Status: Mitigated structurally through Phase 05; residual manual validation remains
+- Status: Mitigated structurally through Phase 06; residual visible behavior remains CF-01
 - Category: Correctness
 - Description: Rendering/input code bound to Phaser is not testable in a headless Node runner,
   risking untested logic leaking into scenes.
@@ -76,6 +79,10 @@
   with pulse and particle-budget math extracted into `src/render/effects.js` and covered by nine
   focused tests. The Phaser-coupled emitter, fade, shake, and pulse application remains thin
   adapter code; all changed JavaScript parsed cleanly and the full 108/108 suite passed.
+- Phase 06 Outcome: Review node `ef905191-7ede-4829-8c38-360804c7f7fb` accepted the thin
+  `GameOverScene` and once-only transition. Layout math and restart equivalence are isolated in
+  pure tests, all five changed JavaScript files parse, and the full 119/119 suite passes. Visible
+  fade/CTA behavior remains the explicit CF-01 manual boundary.
 
 ### R4: Non-deterministic core breaks reproducibility and tests
 - Status: Mitigated through the complete Phase 03 simulation core
@@ -99,7 +106,7 @@
   no wall-clock or direct-randomness path.
 
 ### R5: Mobile performance under particle/glow load
-- Status: Mitigated structurally in Phase 05; real-device frame-rate confirmation remains
+- Status: Mitigated structurally; real-device frame-rate confirmation remains CF-01
 - Category: Performance
 - Description: Neon glow and explosion particles can drop frame rate on mid-range mobile GPUs.
 - Likelihood: Medium
@@ -118,6 +125,9 @@
   bounded by row size and duration. Review node `1c072521-caaf-4349-9a3f-28143e4285b7` accepted
   the implementation with no performance finding; the cap and outcome mapping are covered by the
   108/108 suite. Actual mid-range mobile GPU behavior remains part of CF-01.
+- Phase 06 Outcome: The game-over overlay adds four bounded tween targets and no recurring
+  particle or simulation load. Review found no performance issue; actual device frame rate still
+  requires CF-01.
 
 ### R6: Collision cascade / row-clear edge cases
 - Status: Mitigated for the accepted Phase 03 configuration and contracts
@@ -143,7 +153,7 @@
   real-config relationship is pinned by the accepted loop tests.
 
 ### R7: Mobile-portrait scaling / input across viewports
-- Status: Partially mitigated — render/input binding delivered; browser confirmation pending
+- Status: Mitigated structurally — browser/viewport confirmation remains CF-01
 - Category: Correctness
 - Description: Varying device aspect ratios and touch vs mouse input can misplace elements or
   mis-map tap position to brick columns.
@@ -162,6 +172,9 @@
   maps the game-space coordinate to a valid column while enforcing cooldown. Review accepted the
   structural binding and existing model tests; cross-viewport behavior still requires the CF-01
   manual browser walkthrough.
+- Phase 06 Outcome: Pure layout tests prove the game-over title, score, and CTA remain centered,
+  ordered, finite, and within alternate design bounds. Runtime scaling, hit feel, and portrait
+  viewport behavior remain unobserved and are retained as CF-01.
 
 ---
 
@@ -193,7 +206,7 @@
 ## 3. Open Risk Questions
 
 - Q1: The headless no-input window holds for three accepted fixed seeds. Will the same constants
-  produce the intended duration and feel for real first-time players? Resolve through browser
-  playtest feedback during Phases 04–06.
+  produce the intended duration and feel for real first-time players? Resolve through the CF-01
+  browser playtest before external release acceptance.
 - Q2: Resolved for the current scope. Phaser 3.80.0 is vendored for self-containment, consistent
   with the absence of a file-size constraint. Reopen only if product scope introduces one.

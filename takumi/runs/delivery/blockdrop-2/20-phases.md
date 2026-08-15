@@ -4,7 +4,7 @@
 
 - Feature Slug: blockdrop-2
 - Related TDD: `./10-tdd.md`
-- Status: In Delivery — Phases 01–05 accepted; Phase 06 next
+- Status: Delivery complete — Phases 01–06 accepted
 - Last Updated: 2026-08-15
 
 ---
@@ -117,6 +117,10 @@ Single repo throughout: **Takumi-Playable**.
 - Key Risks / Notes: Depends on Phase 04. Performance-on-mobile risk (R5).
 
 ### Phase 06: Game-Over Screen & Restart CTA
+- Outcome: Accepted on 2026-08-15 by review node
+  `ef905191-7ede-4829-8c38-360804c7f7fb`. The final-score overlay, fake `Play` CTA, once-only
+  transition, and clean restart were delivered with 119/119 tests passing and all changed
+  JavaScript parsing cleanly. The human-only browser walkthrough remains CF-01.
 - Goal: Close the session loop.
 - Scope: `GameOverScene` — game-over fade-in, final score display, and the fake `Play` CTA that
   restarts a fresh session; wire `GameScene`'s game-over transition; ensure a clean state reset on
@@ -124,7 +128,7 @@ Single repo throughout: **Takumi-Playable**.
 - Repos touched: Takumi-Playable.
 - Exit Criteria:
   - [ ] Game-over screen fades in with the final score and a fake `Play` CTA (manual DoD check).
-  - [ ] Activating the CTA restarts a fresh session equal to the initial state — score 0, no bomb,
+  - [x] Activating the CTA restarts a fresh session equal to the initial state — score 0, no bomb,
         fresh bricks (integration on `reset`/re-construction). (INV-6)
   - [ ] Full DoD walkthrough passes: portrait boot, collision rules, rise→game-over, cooldown,
         upward scaling, value-based score, game-over CTA restart, neon effects visible.
@@ -151,12 +155,12 @@ the shell (01) exists, but rendering (04) cannot start until the model (03) is r
 
 ## 3. Deferred Work Registry
 
-Phase 05 leaves three non-blocking, review-traceable items. It retained the manual browser check
-and two scoped cleanup/observability items after explicitly re-evaluating each one. Current fields
-and rationale are in `phase-05/32-carry-forward.md`.
+Phase 06 resolved the two headless items inherited from Phase 05 and leaves one non-blocking,
+review-traceable human validation item. Current fields and rationale are in
+`phase-06/32-carry-forward.md`.
 
-- CF-01 — execute the manual mobile-portrait browser boot/play check for the delivered render,
-  input binding, and game-feel effects during the Phase 06 final DoD walkthrough.
-- CF-02 — remove the pre-existing empty `Test.txt` during Phase 06 final integration cleanup.
-- CF-03 — consider a debug-only warning for unknown scale configuration tokens when shell
-  observability is next touched.
+- CF-01 — execute the documented mobile-portrait browser walkthrough covering boot, play,
+  effects, game over, CTA restart, responsive input, and real-device frame rate before external
+  release acceptance.
+- Resolved in Phase 06: CF-02 (`Test.txt` removed) and CF-03 (debug-gated unknown scale-token
+  warning implemented with the existing fallback preserved).

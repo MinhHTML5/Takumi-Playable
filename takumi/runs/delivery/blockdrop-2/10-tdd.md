@@ -8,7 +8,7 @@
   - Product: Operator (via intake)
   - Architecture: lane:arch / stage:baseline
   - Build: lane:build (per-phase)
-- Status: In Delivery — Phases 01–05 accepted
+- Status: Delivered — Phases 01–06 accepted; manual browser walkthrough remains deferred
 - Last Updated: 2026-08-15
 
 ---
@@ -36,7 +36,7 @@ survival loop with neon art, juice effects, value-based scoring, and a game-over
   score reflects value removed/cleared, the neon visuals + juice are present, and the game-over
   CTA restarts a fresh session. All core rules are covered by passing unit/integration tests.
 
-**Implemented state after Phase 05:** The repository contains the accepted 720×1280 Phaser shell,
+**Implemented state after Phase 06:** The repository contains the accepted 720×1280 Phaser shell,
 vendored Phaser 3.80.0 runtime, central Phaser-free tunables, and a `node:test` harness. Phase 02
 added the deterministic RNG, elapsed-time difficulty/value functions, immutable grid/row helpers,
 and monotonic score accumulator under `src/core/`. Phase 03 added the pure collision resolver and
@@ -46,10 +46,14 @@ helpers, generated-once procedural neon textures, and the thin `GameScene` adapt
 model snapshots, forwards pointer input, and advances the model through bounded sub-steps. Phase
 05 added pure effect helpers, an idempotent neutral particle texture, a reusable capped particle
 emitter, event-driven explosion bursts and row-clear shake, brick spawn fade-in, and a pulsing
-danger line. The complete core remains Phaser/DOM-free and deterministic; the accepted suite now
-covers 108/108 tests. The game-over presentation remains planned for Phase 06. This state is
-grounded in Phase 05 review node `1c072521-caaf-4349-9a3f-28143e4285b7`, which recorded `accept`
-with no blocking or non-blocking findings.
+danger line. Phase 06 added the pure game-over layout helper, final-score fade-in overlay, fake
+`Play` CTA, once-only game-over scene transition, and clean scene/model reinitialization on
+restart. It also removed `Test.txt` and added a debug-gated warning for unknown scale tokens while
+preserving the existing fallback. The complete core remains Phaser/DOM-free and deterministic;
+the accepted suite covers 119/119 tests. This state is grounded in Phase 06 review node
+`ef905191-7ede-4829-8c38-360804c7f7fb`, which recorded `accept` with no blocking findings. Visible
+browser behavior and real-device feel remain unobserved in the headless lane and are retained as
+CF-01 rather than claimed as delivered validation.
 
 ---
 
@@ -89,21 +93,25 @@ with no blocking or non-blocking findings.
   full core tree. `collision.js` resolves individual interactions and `simulation.js` owns the
   deterministic `GameModel` and its tick pipeline. Phases 04–05 bind that model to Phaser through
   pure tint, fixed-step, pulse, and particle-budget helpers; generated-once procedural textures;
-  and a snapshot- and event-driven `GameScene`.
+  and a snapshot- and event-driven `GameScene`. Phase 06 completes the scene lifecycle:
+  `GameScene` launches `GameOverScene` once with the final score, and the CTA starts a fresh
+  `GameScene` session.
 - **Relevant modules/services:** `index.html`, `src/main.js`, `src/scenes/BootScene.js`,
-  `src/scenes/GameScene.js`, `src/core/config.js`, `rng.js`, `difficulty.js`, `grid.js`,
-  `scoring.js`, `collision.js`, `simulation.js`, `src/render/tint.js`, `loop.js`, `neon.js`, their
-  eleven `node:test` suites, and `vendor/phaser.min.js`.
+  `src/scenes/GameScene.js`, `src/scenes/GameOverScene.js`, `src/core/config.js`, `rng.js`,
+  `difficulty.js`, `grid.js`, `scoring.js`, `collision.js`, `simulation.js`, `src/render/tint.js`,
+  `loop.js`, `neon.js`, `effects.js`, `gameOverLayout.js`, thirteen `node:test` suites, and
+  `vendor/phaser.min.js`.
 - **Relevant data flows:** Browser host → Phaser boot → generated texture registration →
   `GameScene`; pointer input → `GameModel.dropBomb`; Phaser frame delta → bounded `fixedSteps` →
   `GameModel.tick`; read-only snapshots → brick/bomb/danger-line/score reconciliation; drained
-  model events → explosion bursts, brick spawn fades, and row-clear shake. Nothing is persisted
-  and nothing leaves the browser tab.
+  model events → explosion bursts, brick spawn fades, and row-clear shake; game-over snapshot →
+  once-only `GameOverScene` launch with final score; CTA → stopped overlay + fresh `GameScene`
+  construction. Nothing is persisted and nothing leaves the browser tab.
 - **Current constraints:** Must use Phaser (PRD §5). Must run standalone in a browser, mobile
   portrait first. No network/backend. No ad-network packaging required this version.
 
 > There is no generated `REPO_MAP.md` to reference. Current implementation state is recorded by
-> Phase 05 review node `1c072521-caaf-4349-9a3f-28143e4285b7` and its accepted review artifact.
+> Phase 06 review node `ef905191-7ede-4829-8c38-360804c7f7fb` and its accepted review artifact.
 
 ---
 
@@ -112,15 +120,16 @@ with no blocking or non-blocking findings.
 ### 4.1 Components and Responsibilities
 
 - **Entry / Host (`index.html`, `src/main.js`)**
-  - Delivery status: Implemented and accepted in Phase 01.
+  - Delivery status: Implemented in Phase 01 and accepted through Phase 06 scene registration and
+    scale-token observability changes.
   - Responsibility: Load the Phaser 3 runtime, define the game config (portrait design resolution,
     scale mode, scene list), and start the game.
   - Owned by repo: Takumi-Playable.
   - Integration points: Instantiates Phaser `Game`; registers scenes.
 
 - **Config / Tunables (`src/core/config.js`)**
-  - Delivery status: Implemented and accepted in Phase 01; values remain intentionally tunable
-    for the logic phases.
+  - Delivery status: Implemented in Phase 01 and accepted through the additive Phase 06
+    game-over screen tunables.
   - Responsibility: Single source of truth for all tunable constants — design resolution, grid
     dimensions, rise speed, spawn interval, bomb fall speed, cooldown, value ranges, difficulty
     curve parameters, tint endpoints. No logic, no Phaser import.
@@ -154,21 +163,23 @@ with no blocking or non-blocking findings.
   - Integration points: `BootScene.create()` calls `generateTextures(this)` before starting
     `GameScene`; the scene imports stable texture-key constants.
 
-- **Render Helpers (`src/render/tint.js`, `src/render/loop.js`, `src/render/effects.js`)**
-  - Delivery status: Implemented and accepted through Phase 05.
+- **Render Helpers (`src/render/tint.js`, `src/render/loop.js`, `src/render/effects.js`,
+  `src/render/gameOverLayout.js`)**
+  - Delivery status: Implemented and accepted through Phase 06.
   - Responsibility: Map values monotonically from configured green→red endpoints, split variable
     frame deltas into bounded simulation steps, calculate the danger-line pulse, and map explosion
-    outcomes to budget-capped particle counts. All helpers are Phaser/DOM-free and covered by
-    `node:test`.
+    outcomes to budget-capped particle counts, and derive centered/on-screen game-over element
+    geometry. All helpers are Phaser/DOM-free and covered by `node:test`.
 
 - **Render/Input Layer (Phaser scenes, `src/scenes/*.js`)**
-  - Delivery status: Boot wiring, simulation/render/input binding, and event-driven effects are
-    implemented and accepted through Phase 05. `GameOverScene` remains planned for Phase 06.
+  - Delivery status: Boot wiring, simulation/render/input binding, event-driven effects, and the
+    game-over/restart lifecycle are implemented and accepted through Phase 06.
   - `BootScene.js`: generate art/textures, then start `GameScene`.
   - `GameScene.js`: instantiates a `GameModel`, splits Phaser delta time into bounded steps, renders
     bricks/bomb/danger line and live score from read-only snapshots, maps taps →
     `model.dropBomb(x)`, drains model events for particles/fades/shake, pulses the danger line,
-    and freezes on game over. Phase 06 will transition to `GameOverScene`.
+    launches `GameOverScene` exactly once on game over while retaining the frozen final frame,
+    and reinitializes scene-local fields whenever a fresh session is created.
   - `GameOverScene.js`: fade in, show final score and the fake `Play` CTA; on CTA/tap, restart a
     fresh `GameScene` (new seed/fresh model).
   - Responsibility: Presentation and input only. **Never** mutates simulation state directly —
@@ -201,6 +212,9 @@ render layer and tests depend on a fixed shape.
 - `model.getState() -> readonly snapshot` — bricks, bomb, score, status, danger metrics.
 - `model.consumeEvents() -> Event[]` — drain and return juice events since last call.
 - `model.reset()` / construct anew — return to the initial state for restart.
+- `GameScene` → `GameOverScene` init data is `{ score }`; missing/non-finite scores render as `0`.
+- The game-over CTA stops the overlay and starts `GameScene`, causing `create()` to construct a
+  fresh `GameModel` and reset all scene-local sprite/effect/transition state.
 - Collision overlap uses the bomb's point position. Phase 04 bounds each model tick to 0.05 s via
   `fixedSteps`, so maximum travel is 45 game units versus the 120-unit row height. The relationship
   is pinned by tests; changing bomb speed, row height, or the bound requires preserving it or
@@ -257,7 +271,7 @@ an operator round-trip in a headless run. All are centralized in `config.js` for
 ## 5. Observability
 
 - **Logs:** Lightweight `console` diagnostics behind a `config.debug` flag (spawn events, collision
-  outcomes, game-over reason). Off by default.
+  outcomes, game-over reason, and unknown scale-token fallbacks). Off by default.
 - **Metrics:** None external. An optional in-model debug readout (elapsed time, difficulty level,
   active brick count) may be surfaced during development.
 - **Alerts:** N/A (client-only playable).
@@ -307,5 +321,5 @@ an operator round-trip in a headless run. All are centralized in `config.js` for
   duration and feel for real first-time players remains a manual playtest question for the
   browser phases; the tunables remain centralized in `config.js`.
 - Q2: Static neon palette endpoints, generated texture treatment, and configurable dynamic effect
-  intensity/particle budgets are implemented through Phase 05. Real-device visual feel and frame
+  intensity/particle budgets are implemented through Phase 06. Real-device visual feel and frame
   rate remain part of the manual browser walkthrough (CF-01), not an architectural question.
