@@ -53,6 +53,32 @@ export const config = {
   // tunable consumed by the Phase 03 GameModel game-over check.
   gameOver: {
     topY: 0,
+    // --- Game-over screen presentation (Phase 06 render-layer, additive) ---
+    // Pure tunables consumed by the engine-free `src/render/gameOverLayout.js`
+    // helper and the render-layer game-over scene. No logic and no forbidden
+    // token lives here, so the INV-1 core-purity scan and every
+    // `test/config.test.js` assertion stay green. First-pass values — final
+    // visual tuning is the deferred manual DoD (CF-01).
+    screen: {
+      // Overlay fade-in duration (ms) for the whole game-over presentation.
+      fadeMs: 500,
+      // Semi-transparent full-screen overlay behind the frozen final frame.
+      overlayColor: 0x05010a,
+      overlayAlpha: 0.72,
+      // "GAME OVER" title styling.
+      title: { text: 'GAME OVER', color: '#ff1744', sizePx: 72 },
+      // Final-score readout styling (`${prefix}${finalScore}`).
+      score: { prefix: 'SCORE ', color: '#39ff14', sizePx: 56 },
+      // Fake `Play` restart CTA — rectangle dimensions + label styling.
+      cta: {
+        label: 'PLAY',
+        width: 360,
+        height: 132,
+        fillColor: 0x39ff14,
+        textColor: '#05010a',
+        textSizePx: 60,
+      },
+    },
   },
 
   // --- Brick-row spawning ---
