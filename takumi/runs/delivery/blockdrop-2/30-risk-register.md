@@ -4,7 +4,7 @@
 
 - Feature Slug: blockdrop-2
 - Related TDD: `./10-tdd.md`
-- Status: Active — reconciled after Phase 04
+- Status: Active — reconciled after Phase 05
 - Last Updated: 2026-08-15
 
 ---
@@ -53,7 +53,7 @@
   browser play is available.
 
 ### R3: Phaser scenes are hard to unit-test
-- Status: Mitigated structurally in Phase 04; residual manual validation remains
+- Status: Mitigated structurally through Phase 05; residual manual validation remains
 - Category: Correctness
 - Description: Rendering/input code bound to Phaser is not testable in a headless Node runner,
   risking untested logic leaking into scenes.
@@ -72,6 +72,10 @@
   into pure modules with 14 focused tests; the 99/99 full suite and recursive core-purity check
   passed. The Phaser-coupled texture/scene surface parsed cleanly, while runtime rendering remains
   the explicit CF-01 manual boundary.
+- Phase 05 Outcome: Review node `1c072521-caaf-4349-9a3f-28143e4285b7` accepted the effects layer
+  with pulse and particle-budget math extracted into `src/render/effects.js` and covered by nine
+  focused tests. The Phaser-coupled emitter, fade, shake, and pulse application remains thin
+  adapter code; all changed JavaScript parsed cleanly and the full 108/108 suite passed.
 
 ### R4: Non-deterministic core breaks reproducibility and tests
 - Status: Mitigated through the complete Phase 03 simulation core
@@ -95,7 +99,7 @@
   no wall-clock or direct-randomness path.
 
 ### R5: Mobile performance under particle/glow load
-- Status: Open for Phase 05 effects; static texture reuse established in Phase 04
+- Status: Mitigated structurally in Phase 05; real-device frame-rate confirmation remains
 - Category: Performance
 - Description: Neon glow and explosion particles can drop frame rate on mid-range mobile GPUs.
 - Likelihood: Medium
@@ -109,6 +113,11 @@
   once and reused; brick sprites are reconciled by id and the bomb sprite is reused. Phase 04
   review found no performance blocker. Particle/emitter load is not yet implemented or exercised,
   so the risk remains open for Phase 05.
+- Phase 05 Outcome: The neutral particle texture is generated once, one emitter is reused for all
+  bursts, per-outcome counts are clamped to `config.particles.maxConcurrent`, and spawn tweens are
+  bounded by row size and duration. Review node `1c072521-caaf-4349-9a3f-28143e4285b7` accepted
+  the implementation with no performance finding; the cap and outcome mapping are covered by the
+  108/108 suite. Actual mid-range mobile GPU behavior remains part of CF-01.
 
 ### R6: Collision cascade / row-clear edge cases
 - Status: Mitigated for the accepted Phase 03 configuration and contracts
