@@ -26,6 +26,7 @@ export const TEX_BACKGROUND = 'neon-background';
 export const TEX_BRICK = 'neon-brick';
 export const TEX_BOMB = 'neon-bomb';
 export const TEX_DANGER_LINE = 'neon-danger-line';
+export const TEX_PARTICLE = 'neon-particle';
 
 // Convenience bundle for consumers that want the whole set.
 export const TEXTURE_KEYS = {
@@ -33,6 +34,7 @@ export const TEXTURE_KEYS = {
   brick: TEX_BRICK,
   bomb: TEX_BOMB,
   dangerLine: TEX_DANGER_LINE,
+  particle: TEX_PARTICLE,
 };
 
 // Neutral white — the base colour for tintable art. `setTint(colour)`
@@ -215,6 +217,36 @@ function generateDangerLine(scene) {
   g.destroy();
 }
 
+// (e) Neutral white particle/spark: a small soft glowing disc with a bright
+// core, drawn white so the scene tints each emitted particle per-instance
+// (by outcome/value) at explode time. Kept small (~20px) and reusable — one
+// generated-once texture feeds a single shared emitter (TDD §7 reuse, R5).
+function generateParticle(scene) {
+  if (scene.textures.exists(TEX_PARTICLE)) return;
+
+  const size = 20;
+  const c = size / 2;
+
+  const g = scratchGraphics(scene);
+
+  // Outer glow: concentric fading discs growing to the edge.
+  const rings = 8;
+  const maxR = size * 0.5;
+  for (let i = rings; i >= 1; i--) {
+    const t = i / rings;
+    const alpha = 0.16 * (1 - t);
+    g.fillStyle(WHITE, alpha);
+    g.fillCircle(c, c, maxR * t);
+  }
+
+  // Bright solid core spark.
+  g.fillStyle(WHITE, 1);
+  g.fillCircle(c, c, size * 0.18);
+
+  g.generateTexture(TEX_PARTICLE, size, size);
+  g.destroy();
+}
+
 // -----------------------------------------------------------------------------
 // Public entry point
 // -----------------------------------------------------------------------------
@@ -234,6 +266,7 @@ export function generateTextures(scene) {
   generateBrick(scene);
   generateBomb(scene);
   generateDangerLine(scene);
+  generateParticle(scene);
   return TEXTURE_KEYS;
 }
 
