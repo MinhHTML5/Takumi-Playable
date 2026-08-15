@@ -11,20 +11,25 @@
 // This is a render-layer module: it MAY use the `Phaser` browser global and read
 // a wall-clock seed. INV-1/INV-2 (core purity, seeded randomness) constrain only
 // `src/core/`; seeding the RNG from the clock here is deliberate session variety.
-// Juice/effects and the game-over overlay/restart are later phases (05/06); this
-// scene never drains `consumeEvents()` and never mutates model state directly.
+// Phase 05 adds render-only juice: it drains `model.consumeEvents()` each frame
+// and turns `explosion`/`rowClear`/`spawn` events into particles/shake/fade-in,
+// and pulses the danger line from read-only elapsed time. It still never mutates
+// model state directly (INV-3) — every read is via `getState()`/`consumeEvents()`.
+// The game-over overlay/restart is a later phase (06).
 
 import config from '../core/config.js';
 import { createRng } from '../core/rng.js';
 import { GameModel } from '../core/simulation.js';
 import { columnCenterX } from '../core/grid.js';
 import { valueToTint } from '../render/tint.js';
+import { dangerPulse, explosionParticleCount } from '../render/effects.js';
 import { fixedSteps } from '../render/loop.js';
 import {
   TEX_BACKGROUND,
   TEX_BRICK,
   TEX_BOMB,
   TEX_DANGER_LINE,
+  TEX_PARTICLE,
 } from '../render/neon.js';
 
 export default class GameScene extends Phaser.Scene {
@@ -37,6 +42,15 @@ export default class GameScene extends Phaser.Scene {
     this.brickSprites = new Map();
     this.bombSprite = null;
     this.model = null;
+
+    // Phase 05 render-only effect state. `dangerLine` is the stored top danger
+    // image whose alpha/scaleY pulse each frame; `explosionEmitter` is the single
+    // reused particle emitter (TDD §7 reuse — no per-event allocation, R5);
+    // `_fadeRows` records rows that emitted a `spawn` event so their bricks fade
+    // in on first appearance. Populated in create()/update().
+    this.dangerLine = null;
+    this.explosionEmitter = null;
+    this._fadeRows = new Set();
   }
 
   create() {
@@ -46,13 +60,30 @@ export default class GameScene extends Phaser.Scene {
     // Graphics). Top-left origin so it covers the whole 720×1280 game space.
     this.add.image(0, 0, TEX_BACKGROUND).setOrigin(0, 0).setDisplaySize(width, height);
 
-    // Static danger line at the game-over boundary. The texture's bright core
-    // sits at its vertical centre, so a (0, 0.5) origin places that core exactly
-    // on `config.gameOver.topY`. Tinted with the high (red) endpoint.
-    this.add
+    // Danger line at the game-over boundary. The texture's bright core sits at
+    // its vertical centre, so a (0, 0.5) origin places that core exactly on
+    // `config.gameOver.topY`. Tinted with the high (red) endpoint. Stored on a
+    // field so `update()` can pulse its alpha/scaleY from `dangerPulse` each
+    // frame; the (0, 0.5) origin keeps the scaleY pulse centred on `topY`.
+    this.dangerLine = this.add
       .image(0, config.gameOver.topY, TEX_DANGER_LINE)
       .setOrigin(0, 0.5)
       .setTint(config.tint.high);
+
+    // One reusable particle emitter for every explosion burst (TDD §7 reuse, R5).
+    // Non-emitting: particles are produced only by explicit `explode(...)` calls
+    // in `_dispatchEffect`. Lifespan/speed/scale come from `config.effects.explosion`;
+    // per-burst colour is applied via `setParticleTint` at emit time. Depth above
+    // bricks/bomb/score so bursts read on top.
+    const ex = config.effects.explosion;
+    this.explosionEmitter = this.add
+      .particles(0, 0, TEX_PARTICLE, {
+        lifespan: ex.lifespanMs,
+        speed: { min: ex.speedMin, max: ex.speedMax },
+        scale: { start: ex.scaleStart, end: ex.scaleEnd },
+        emitting: false,
+      })
+      .setDepth(20);
 
     // One GameModel per session. Seed is chosen here (render layer): a wall-clock
     // seed gives each session variety without violating INV-2 (which scopes only
@@ -98,9 +129,62 @@ export default class GameScene extends Phaser.Scene {
       }
     }
 
-    // Always render the latest snapshot (even when frozen, to keep the final
-    // frame consistent after a resize/redraw). Read-only (INV-3).
-    this._render(this.model.getState());
+    // Drain the events produced by this frame's tick(s) and turn each into a
+    // render-only effect. Runs AFTER the tick loop, and unconditionally — on the
+    // frame game-over is first reached the model has already frozen at the top of
+    // the next update, but the tick that ends the game still pushed its final
+    // explosion/rowClear this frame, so draining here plays that last burst. On
+    // subsequent frozen frames no ticks run, so this drains an empty list.
+    const events = this.model.consumeEvents();
+    for (const event of events) {
+      this._dispatchEffect(event);
+    }
+
+    // Latest snapshot: pulse the danger line from read-only elapsed sim time and
+    // reconcile sprites (even when frozen, to keep the final frame consistent
+    // after a resize/redraw). Read-only (INV-3).
+    const snapshot = this.model.getState();
+    const pulse = dangerPulse(snapshot.time, config);
+    this.dangerLine.setAlpha(pulse.alpha);
+    this.dangerLine.scaleY = pulse.scaleY;
+
+    this._render(snapshot);
+  }
+
+  // Turn one drained model event into a render-only effect (INV-3: never touches
+  // model state). `explosion` → a budget-capped particle burst (R5) tinted by
+  // outcome/value; `rowClear` → the INV-8 screen shake; `spawn` → tag the new row
+  // so its bricks fade in when first drawn. Any other event type (e.g. `gameover`)
+  // has no render effect here (the overlay is Phase 06).
+  _dispatchEffect(event) {
+    switch (event.type) {
+      case 'explosion': {
+        // Count is already clamped to `config.particles.maxConcurrent` (R5).
+        const count = explosionParticleCount(event.outcome, config);
+        // Colour the burst by the collision: an exact row-clear flashes the high
+        // (red) endpoint; a partial hit tints by the value gained.
+        const tint =
+          event.outcome === 'exact'
+            ? config.tint.high
+            : valueToTint(event.value, config);
+        this.explosionEmitter.setParticleTint(tint);
+        this.explosionEmitter.explode(count, event.x, event.y);
+        break;
+      }
+      case 'rowClear':
+        this.cameras.main.shake(
+          config.effects.shake.durationMs,
+          config.effects.shake.intensity,
+        );
+        break;
+      case 'spawn':
+        // Bricks in this row fade in on first render (see _renderBricks). Initial
+        // seeded rows emit no `spawn` event, so they never fade (render full alpha).
+        this._fadeRows.add(event.row);
+        break;
+      default:
+        break;
+    }
   }
 
   // Reconcile the on-screen sprites to a read-only model snapshot. Reuses a keyed
@@ -124,6 +208,19 @@ export default class GameScene extends Phaser.Scene {
       if (!sprite) {
         sprite = this.add.image(0, 0, TEX_BRICK);
         this.brickSprites.set(brick.id, sprite);
+
+        // Spawn fade-in: if this brick's row emitted a `spawn` event, start the
+        // freshly created sprite transparent and tween it to full alpha over
+        // `config.effects.spawnFadeMs`. Only affects sprites created after their
+        // spawn event; seeded initial rows (never tagged) render at full alpha.
+        if (this._fadeRows.has(brick.row)) {
+          sprite.setAlpha(0);
+          this.tweens.add({
+            targets: sprite,
+            alpha: 1,
+            duration: config.effects.spawnFadeMs,
+          });
+        }
       }
 
       // Centre of the cell: horizontal column centre, vertical brick-top + half
