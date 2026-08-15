@@ -56,6 +56,20 @@ export default class GameScene extends Phaser.Scene {
   create() {
     const { width, height } = config.design;
 
+    // Re-initialise the per-session scene fields so a `scene.start` restart
+    // begins from a clean pool. Phaser reuses the scene instance across restart
+    // and does NOT re-run the constructor, so constructor-only initialisation
+    // would carry stale sprite references / a stale game-over guard into the new
+    // session. `brickSprites`/`bombSprite`/`_fadeRows` mirror the constructor
+    // defaults; `_gameOverHandled` guards the once-only GameOverScene launch
+    // (reset to false so the fresh session can trigger its own game-over). The
+    // sprites from the prior session are already destroyed by Phaser on
+    // scene.start, so dropping the old references here is safe.
+    this.brickSprites = new Map();
+    this.bombSprite = null;
+    this._fadeRows = new Set();
+    this._gameOverHandled = false;
+
     // Static neon backdrop from the baked texture (TDD §7 reuse — no per-frame
     // Graphics). Top-left origin so it covers the whole 720×1280 game space.
     this.add.image(0, 0, TEX_BACKGROUND).setOrigin(0, 0).setDisplaySize(width, height);
@@ -149,6 +163,19 @@ export default class GameScene extends Phaser.Scene {
     this.dangerLine.scaleY = pulse.scaleY;
 
     this._render(snapshot);
+
+    // Game-over transition (render-only, INV-3: reads model state via getState()
+    // only, never mutates it). Runs AFTER the tick loop, the event drain, and the
+    // final-frame render, so the game-ending tick's last explosion/row-clear/shake
+    // still plays this frame beneath the overlay. `_gameOverHandled` makes the
+    // launch fire exactly once — not on every frozen post-game-over frame. Use
+    // `launch` (not `start`) so this frozen neon final frame stays visible under
+    // the GameOverScene's fading overlay; GameOverScene restarts GameScene on its
+    // CTA. `_gameOverHandled` is reset in create(), so a fresh session re-arms it.
+    if (snapshot.status === 'gameover' && !this._gameOverHandled) {
+      this._gameOverHandled = true;
+      this.scene.launch('GameOverScene', { score: snapshot.score });
+    }
   }
 
   // Turn one drained model event into a render-only effect (INV-3: never touches
